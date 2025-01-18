@@ -65,9 +65,9 @@ def create_defsys_summary(path_to_csv: str | Path) -> tuple:
                           .agg(lambda x: x.value_counts().index[x.value_counts().argmax()])
                           .values[0][0])
 
-    # Ignore multi systems
-    prot_from_multi_sys = df['target.name'].value_counts()[df['target.name'].value_counts() > 1].index
-    dupl_sys_ids = df[df['target.name'].isin(prot_from_multi_sys)].SysID.unique()
+    # Ignore duplicated systems
+    prot_from_dupl_sys = df['target.name'].value_counts()[df['target.name'].value_counts() > 1].index
+    dupl_sys_ids = df[df['target.name'].isin(prot_from_dupl_sys)].SysID.unique()
     dupl_sys_list = [path_to_csv.stem[:15] + '_' + i for i in dupl_sys_ids]
     df = df[~df.SysID.isin(dupl_sys_ids)]
 
