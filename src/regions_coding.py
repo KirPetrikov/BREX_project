@@ -47,7 +47,7 @@ def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
 # tmpb = annot_df.query('Annotation == @prot_to_consider_clus').iloc[:15]
 # test_df = pd.concat([tmpa, tmpb])
 #
-# modify_ann_prot(test_df, 'WYL')
+
 #
 
 
@@ -55,14 +55,20 @@ input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_ful
 input_path = Path('/home/holydiver/Main/2024_BREX/Data/TMP/Exmpls/')
 input_json_summary = Path('defsys_regions_summary.json')
 
-# prot_to_consider_clus = 'WYL'
-# prot_sing_cutoff = 2
 consider_upstream = True
+prot_to_consider_clus = 'WYL'
+prot_singl_cutoff = 0
+singl_cutoff_total = 0
 
 output_path = Path('./')
 output_json_name = Path('summary.json')
 
+
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
+
+# modify_ann_prot(test_df, prot_to_consider_clus)
+# mask_singletons(annot_df)
+
 annot_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
 
 with open(input_path / input_json_summary) as f:
