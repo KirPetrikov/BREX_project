@@ -1,5 +1,5 @@
 """
-v0.4a
+v0.4b
 """
 import json
 import pandas as pd
@@ -16,7 +16,7 @@ BREX_SET = {'BrxA', 'BrxB', 'BrxC',
             }
 
 
-def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0):
+def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
     """
 
     :param df:
@@ -40,6 +40,8 @@ def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0):
           .apply(lambda x: annot_to_reset[str(x.values[0])], axis=1)
                                                                 )
 
+    return {_ for _ in annot_to_reset.values()}
+
 
 def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
     """
@@ -56,18 +58,22 @@ input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
 input_json_summary = 'regions_summary.json'
 
 consider_upstream = True
-prot_to_consider_clus = 'WYL'
+prots_to_consider_clus = ('WYL', 'BrxC')
 prot_singl_cutoff = 0
-singl_cutoff_total = 0
+
 
 output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
-output_tsv_name = '20250124_unique_regions_summary.tsv'
-output_json_name = '20250124_unique_regions_annotation.json'
+output_tsv_name = '20250124_unique_regions_WYL_BrxC_summary.tsv'
+output_json_name = '20250124_unique_regions_WYL_BrxC_accessions.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
 
-# modify_ann_prot(annot_df, prot_to_consider_clus)
+curr_brex_set = BREX_SET
+for protein in prots_to_consider_clus:
+    annot_to_add = modify_ann_prot(annot_df, protein)
+    if protein in BREX_SET:
+        curr_brex_set.update(_ for _ in annot_to_add)
 
 # mask_singletons(annot_df)
 
@@ -131,7 +137,7 @@ else:  # Defsys_type-set cast to string
                                                  )
 
 unique_regions_df['Inner'] = (
-    unique_regions_df.Region.apply(lambda x: bool(set(x.split(',')[1:]).difference(BREX_SET)))
+    unique_regions_df.Region.apply(lambda x: bool(set(x.split(',')[1:]).difference(curr_brex_set)))
                               )
 
 unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t', index=False)
