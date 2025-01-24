@@ -1,5 +1,5 @@
 """
-v0.4
+v0.4a
 """
 import json
 import pandas as pd
@@ -7,6 +7,13 @@ import sys
 
 from collections import defaultdict
 from pathlib import Path
+
+BREX_SET = {'BrxA', 'BrxB', 'BrxC',
+            'BrxD', 'BrxE', 'BrxF',
+            'BrxHII', 'BrxHI', 'BrxL',
+            'BrxP', 'PglW', 'PglXI',
+            'PglX', 'PglZ'
+            }
 
 
 def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0):
@@ -43,16 +50,6 @@ def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
     """
     df.loc[df['Cluster_size'] < cutoff, ['Annotation']] = '%MASK' + str(cutoff)
 
-# input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_full_annotation.tsv')
-# input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
-#
-# tmpa = annot_df.iloc[10:15]
-# tmpb = annot_df.query('Annotation == @prot_to_consider_clus').iloc[:15]
-# test_df = pd.concat([tmpa, tmpb])
-#
-
-#
-
 
 input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_full_annotation.tsv')
 input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
@@ -65,12 +62,13 @@ singl_cutoff_total = 0
 
 output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
 output_tsv_name = '20250124_unique_regions_summary.tsv'
-output_json_name = '20250124_unique_regions_summary.json'
+output_json_name = '20250124_unique_regions_annotation.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
 
-# modify_ann_prot(test_df, prot_to_consider_clus)
+# modify_ann_prot(annot_df, prot_to_consider_clus)
+
 # mask_singletons(annot_df)
 
 annot_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
@@ -107,7 +105,6 @@ for curr_region in regions_summary:
             unique_regions_summary[annotated_region] = {}
             unique_regions_summary[annotated_region]['Counts'] = 1
             unique_regions_summary[annotated_region]['Defsys_type'] = {curr_region['defsys_type']}
-            unique_regions_summary[annotated_region]['Inner'] = bool(curr_region['inner_idxs'])
 
         unique_regions_accessions[annotated_region].append(curr_region['accession'] +
                                                            '%' +
@@ -121,17 +118,23 @@ for curr_region in regions_summary:
               file=sys.stderr
               )
 
-unique_regions_df = pd.DataFrame.from_dict(unique_regions_summary, orient='index').rename_axis('Region')
+unique_regions_df = (pd.DataFrame.from_dict(unique_regions_summary, orient='index')
+                       .rename_axis('Region')
+                       .reset_index()
+                     )
 
 if (unique_regions_df.Defsys_type.apply(lambda x: len(x)) > 1).any():
     print('Warning: Some regions are assigned a non-unique defense system type!', file=sys.stderr)
 else:  # Defsys_type-set cast to string
-    unique_regions_df.loc[:, ['Defsys_type']] = (unique_regions_df.loc[:, 'Defsys_type']
-                                                                  .astype(str)
-                                                                  .apply(lambda x: x[2:-2])
+    unique_regions_df.loc[:, ['Defsys_type']] = (
+        unique_regions_df.loc[:, 'Defsys_type'].astype(str).apply(lambda x: x[2:-2])
                                                  )
 
-unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t')
+unique_regions_df['Inner'] = (
+    unique_regions_df.Region.apply(lambda x: bool(set(x.split(',')[1:]).difference(BREX_SET)))
+                              )
+
+unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t', index=False)
 
 with open(output_path / output_json_name, mode='w') as f:
     json.dump(unique_regions_accessions, f, indent=4)
