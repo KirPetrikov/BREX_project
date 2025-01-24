@@ -63,17 +63,18 @@ prot_singl_cutoff = 0
 
 
 output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
-output_tsv_name = '20250124_unique_regions_WYL_BrxC_summary.tsv'
-output_json_name = '20250124_unique_regions_WYL_BrxC_accessions.json'
+output_tsv_name = '20250124_unique_regions_summary.tsv'
+output_json_name = '20250124_unique_regions_accessions.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
 
 curr_brex_set = BREX_SET
-for protein in prots_to_consider_clus:
-    annot_to_add = modify_ann_prot(annot_df, protein)
-    if protein in BREX_SET:
-        curr_brex_set.update(_ for _ in annot_to_add)
+
+# for protein in prots_to_consider_clus:
+#     annot_to_add = modify_ann_prot(annot_df, protein)
+#     if protein in BREX_SET:
+#         curr_brex_set.update(_ for _ in annot_to_add)
 
 # mask_singletons(annot_df)
 
