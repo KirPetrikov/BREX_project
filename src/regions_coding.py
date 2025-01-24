@@ -1,3 +1,6 @@
+"""
+v0.4
+"""
 import json
 import pandas as pd
 import sys
@@ -52,16 +55,17 @@ def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
 
 
 input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_full_annotation.tsv')
-input_path = Path('/home/holydiver/Main/2024_BREX/Data/TMP/Exmpls/')
-input_json_summary = Path('defsys_regions_summary.json')
+input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
+input_json_summary = 'regions_summary.json'
 
 consider_upstream = True
 prot_to_consider_clus = 'WYL'
 prot_singl_cutoff = 0
 singl_cutoff_total = 0
 
-output_path = Path('./')
-output_json_name = Path('summary.json')
+output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
+output_tsv_name = '20250124_unique_regions_summary.tsv'
+output_json_name = '20250124_unique_regions_summary.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
@@ -74,13 +78,11 @@ annot_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
 with open(input_path / input_json_summary) as f:
     regions_summary = json.load(f)
 
-unique_regions_summary = defaultdict(lambda: {'counts': 0,
-                                              'inner_presents': True,
-                                              'defsys_type': [],
-                                              'accession': []}
-                                     )
+unique_regions_summary = {}
+unique_regions_accessions = defaultdict(list)
 
 for curr_region in regions_summary:
+    # For regions with upstream gene
     if curr_region['defsys_idxs'][0] != 0:
 
         if consider_upstream:
@@ -95,20 +97,41 @@ for curr_region in regions_summary:
             curr_region['nucleotide'] + '_' + i for i in curr_region['proteins_ids'][upstream_idx:end_idx]
                                          ]
         annotated_region = ','.join(
-            [annot_dict.get(protein, protein) for protein in curr_region_selected_proteins]
+            [annot_dict[protein] for protein in curr_region_selected_proteins]
                                     )
 
-        unique_regions_summary[annotated_region]['counts'] += 1
-        unique_regions_summary[annotated_region]['defsys_type'].append(curr_region['defsys_type'])
-        unique_regions_summary[annotated_region]['accession'].append(curr_region['accession'] +
-                                                                     '%' +
-                                                                     curr_region['nucleotide']
-                                                                     )
-        unique_regions_summary[annotated_region]['inner_presents'] = bool(curr_region['inner_idxs'])
+        if annotated_region in unique_regions_summary:
+            unique_regions_summary[annotated_region]['Counts'] += 1
+            unique_regions_summary[annotated_region]['Defsys_type'].add(curr_region['defsys_type'])
+        else:
+            unique_regions_summary[annotated_region] = {}
+            unique_regions_summary[annotated_region]['Counts'] = 1
+            unique_regions_summary[annotated_region]['Defsys_type'] = {curr_region['defsys_type']}
+            unique_regions_summary[annotated_region]['Inner'] = bool(curr_region['inner_idxs'])
+
+        unique_regions_accessions[annotated_region].append(curr_region['accession'] +
+                                                           '%' +
+                                                           curr_region['nucleotide']
+                                                           )
 
     else:
         print('Warning:',
-              curr_region['accession'] + '%' + curr_region['nucleotide'],
+              curr_region['accession'] + '%' + curr_region['nucleotide'] + '%' + curr_region['defsys_type'],
               'does not has upstream gene!',
               file=sys.stderr
               )
+
+unique_regions_df = pd.DataFrame.from_dict(unique_regions_summary, orient='index').rename_axis('Region')
+
+if (unique_regions_df.Defsys_type.apply(lambda x: len(x)) > 1).any():
+    print('Warning: Some regions are assigned a non-unique defense system type!', file=sys.stderr)
+else:  # Defsys_type-set cast to string
+    unique_regions_df.loc[:, ['Defsys_type']] = (unique_regions_df.loc[:, 'Defsys_type']
+                                                                  .astype(str)
+                                                                  .apply(lambda x: x[2:-2])
+                                                 )
+
+unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t')
+
+with open(output_path / output_json_name, mode='w') as f:
+    json.dump(unique_regions_accessions, f, indent=4)
