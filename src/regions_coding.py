@@ -1,5 +1,5 @@
 """
-v0.4b
+v0.4c
 """
 import json
 import pandas as pd
@@ -53,6 +53,24 @@ def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
     df.loc[df['Cluster_size'] < cutoff, ['Annotation']] = '%MASK' + str(cutoff)
 
 
+def create_region(protein: str, annotations: dict) -> str:
+    """
+
+    :param protein:
+    :param annotations:
+    :return:
+    """
+    try:
+        return annotations[protein]
+    except KeyError:
+        print('Warning: Protein',
+              protein,
+              'does not has annotation!',
+              file=sys.stderr
+              )
+        return protein
+
+
 input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_full_annotation.tsv')
 input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
 input_json_summary = 'regions_summary.json'
@@ -78,7 +96,7 @@ curr_brex_set = BREX_SET
 
 # mask_singletons(annot_df)
 
-annot_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
+annotations_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
 
 with open(input_path / input_json_summary) as f:
     regions_summary = json.load(f)
@@ -102,7 +120,7 @@ for curr_region in regions_summary:
             curr_region['nucleotide'] + '_' + i for i in curr_region['proteins_ids'][upstream_idx:end_idx]
                                          ]
         annotated_region = ','.join(
-            [annot_dict[protein] for protein in curr_region_selected_proteins]
+            [create_region(prot, annotations_dict) for prot in curr_region_selected_proteins]
                                     )
 
         if annotated_region in unique_regions_summary:
