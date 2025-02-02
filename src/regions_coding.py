@@ -8,12 +8,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-BREX_SET = {'BrxA', 'BrxB', 'BrxC',
-            'BrxD', 'BrxE', 'BrxF',
-            'BrxHII', 'BrxHI', 'BrxL',
-            'BrxP', 'PglW', 'PglXI',
-            'PglX', 'PglZ'
-            }
+BREX_PROTEINS = {'BrxA', 'BrxB', 'BrxC',
+                 'BrxD', 'BrxE', 'BrxF',
+                 'BrxHII', 'BrxHI', 'BrxL',
+                 'BrxP', 'PglW', 'PglXI',
+                 'PglX', 'PglZ'
+                 }
 
 
 def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
@@ -24,6 +24,7 @@ def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
     :param cutoff:
     :return:
     """
+    
     clusters_list = (
         df.query('Annotation == @prot_name & Cluster_size > @cutoff')['Cluster']
           .unique()
@@ -76,23 +77,23 @@ input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
 input_json_summary = 'regions_summary.json'
 
 consider_upstream = True
-prots_to_consider_clus = ('WYL', 'BrxC')
+prots_to_consider_clus = (('WYL',0),)
 prot_singl_cutoff = 0
 
 
 output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
-output_tsv_name = '20250124_unique_regions_summary.tsv'
-output_json_name = '20250124_unique_regions_accessions.json'
+output_tsv_name = '20250124_unique_regions_WYL_summary.tsv'
+output_json_name = '20250124_unique_regions_WYL_accessions.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
 
-curr_brex_set = BREX_SET
+curr_brex_set = BREX_PROTEINS
 
-# for protein in prots_to_consider_clus:
-#     annot_to_add = modify_ann_prot(annot_df, protein)
-#     if protein in BREX_SET:
-#         curr_brex_set.update(_ for _ in annot_to_add)
+for protein in prots_to_consider_clus:
+    annot_to_add = modify_ann_prot(annot_df, protein[0], protein[1])
+    if protein in BREX_PROTEINS:
+        curr_brex_set.update(_ for _ in annot_to_add)
 
 # mask_singletons(annot_df)
 
