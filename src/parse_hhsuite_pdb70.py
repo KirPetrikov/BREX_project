@@ -2,22 +2,22 @@
 v0.1
 """
 import json
+import sys
 import pandas as pd
 
 from pathlib import Path
 
+input_hh_suite_results = Path(sys.argv[1])
+input_n_hits = int(sys.argv[2])
+output_path = Path(sys.argv[3])
 
-input_hh_suite_results = Path('/home/holydiver/Main/2024_BREX/Data/TMP/Exmpls/hhsuite_pdb70_ann')
-input_n_hits = 3  # Number of hits for additional description
-
-output_path = Path('./')
 output_tsv_name = Path('pdb_top_annot.tsv')
 output_json_name = Path('pdb_annot.json')
 
 descriptions_catalog = {}  # Collections of all top annotations with descriptions
-only_first_annotations = {'Cluster': [],
+only_first_annotations = {'Cluster': [],  # Top-1 annotations for table
                           'pdb70_id': [],
-                          'Annotation': []}  # Top-1 annotations for table
+                          'Annotation': []}
 
 for file_name in input_hh_suite_results.iterdir():
     if file_name.suffix == '.hhr':
