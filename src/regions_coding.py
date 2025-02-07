@@ -36,7 +36,7 @@ def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
                                                          )
                       }
 
-    df.loc[df['Cluster'].isin(clusters_list), 'Annotation'] = (
+    df.loc[df['Cluster'].isin(clusters_list), ['Annotation']] = (
         df.loc[df['Cluster'].isin(clusters_list), ['Cluster']]
           .apply(lambda x: annot_to_reset[str(x.values[0])], axis=1)
                                                                 )
@@ -164,3 +164,4 @@ unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t', index=False)
 
 with open(output_path / output_json_name, mode='w') as f:
     json.dump(unique_regions_accessions, f, indent=4)
+
