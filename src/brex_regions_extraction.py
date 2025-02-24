@@ -9,15 +9,15 @@ from pathlib import Path
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Parse Padloc results, csv-files, to create defense systems summary."
+        description='Parse Padloc results, csv-files, to create defense systems summary.'
                                      )
 
     parser.add_argument('input_folder_path', type=str,
-                        help="Path to the data folder")
+                        help='Path to the data folder')
     parser.add_argument('output_path_results', type=str,
-                        help="Path to the results folder. Will be created if it does not exist")
-    parser.add_argument('-ds', type=str, default="brex",
-                        help="Name or prefix of the Padloc protection system")
+                        help='Path to the results folder. Will be created if it does not exist')
+    parser.add_argument('-ds', type=str, default='brex',
+                        help='Name or prefix of the Padloc protection system.\nDefault: brex')
 
     return parser.parse_args()
 
@@ -64,10 +64,10 @@ def create_defsys_summary(path_to_csv: str | Path) -> tuple:
 
     # Collection of systems with antiparallel genes if needed
     anti_defsys_ids = (df.loc[:, ('strand', 'DS_ID')]
-                       .groupby('DS_ID')
-                       .agg(lambda x: x.nunique())
-                       .query('strand > 1')
-                       .index)
+                         .groupby('DS_ID')
+                         .agg(lambda x: x.nunique())
+                         .query('strand > 1')
+                         .index)
     anti_defsys_names = [path_to_csv.stem[:15] + '_' + i for i in anti_defsys_ids]
 
     # Choose uniform strandness/direction for non-unidirectional DS
@@ -103,9 +103,7 @@ def create_defsys_summary(path_to_csv: str | Path) -> tuple:
                                  .reset_index()
                       )
     df_proteins_fin = pd.concat([df_proteins.loc[~df_proteins.Protein.isin(duplicated_prots)],
-                                 df_dupl_merged
-                                 ]
-                                )
+                                 df_dupl_merged])
 
     df = df[~df.DS_ID.isin(dupl_defsys_ids)]
 
@@ -161,9 +159,7 @@ no_target_defsys_genomes = []  # List of nucleotides w/o DS of interest
 protein_annotations = pd.DataFrame(columns=('Protein', 'Padloc_ann',
                                             'System', 'Nucleotide',
                                             'Start', 'End',
-                                            'Strand', 'Localisation'
-                                            )
-                                   )
+                                            'Strand', 'Localisation'))
 
 for folder in input_folder_path.iterdir():
     print(f'---Processing {folder.name}---')
@@ -193,8 +189,7 @@ logs = (duplicate_defsys, antiparallel_defsys, no_target_defsys_genomes)
 
 f_names = ('duplicate_defsys.txt',
            'antiparallel_defsys.txt',
-           'no_target_defsys_genomes.txt'
-           )
+           'no_target_defsys_genomes.txt')
 
 for log, f_name in zip(logs, f_names):
     with open(output_path_results / f_name, mode='w') as f:
