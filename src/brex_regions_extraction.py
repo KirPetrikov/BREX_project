@@ -1,265 +1,204 @@
-"""v0.3d"""
-
-import json
-import subprocess
+"""v0.4 WIP
+   No extraction functionality!
+"""
+import argparse
 import pandas as pd
-import re
 
 from pathlib import Path
 
 
-def coords_selector(x):
-    """Auxiliary function for df.apply"""
-    if x.name == 'start':
-        return min(set(x))
-    elif x.name == 'end':
-        return max(set(x))
-    elif x.name == 'strand':
-        return x.unique()[0]
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Parse Padloc results, csv-files, to create defense systems summary."
+                                     )
+
+    parser.add_argument('input_folder_path', type=str,
+                        help="Path to the data folder")
+    parser.add_argument('output_path_results', type=str,
+                        help="Path to the results folder. Will be created if it does not exist")
+    parser.add_argument('-ds', type=str, default="brex",
+                        help="Name or prefix of the Padloc protection system")
+
+    return parser.parse_args()
 
 
-def count_flanks(x, add_up: int, add_down: int) -> tuple:
-    """Auxiliary function for df.apply"""
-    if x.strand == '+':
-        return max(x.start - add_up, 1), x.end + add_down
-    elif x.strand == '-':
-        return max(x.start - add_down, 1), x.end + add_up
+def coords_selector(frame):
+    """
+    Auxiliary function for groupby-agg
+    Selects the coordinates and strand of the DS's region
+    """
+    if frame.name == 'start':
+        return min(frame)
+    elif frame.name == 'end':
+        return max(frame)
+    elif frame.name == 'strand':
+        return frame.unique()[0]
+
+
+def get_proteins_numbers(frame):
+    """
+    Auxiliary function for groupby-agg
+    Return only protein's number w/o nucleotide
+    """
+    return [int(_.split('_')[-1]) for _ in frame]
 
 
 def create_defsys_summary(path_to_csv: str | Path) -> tuple:
     """
     Input: Padlock csv
-    Output: DefSys table in a short, convenient format
-    Ignores duplicate-systems completely
-        (logged to the dupl_sys_ids)
-    The region direction is selected by the brxC direction or by simple voting
-        (logged to the variable antiparallel_sys)
+    Output: DefSys summary table
 
-    Field 'SysID':
-        x.split('%')[-1] contig name;
+    Ignores duplicate-systems in summary table
+    The region direction is selected by the brxC direction or by simple voting
+
+    Field 'DS_ID':
+        x.split('%')[-1] contig/nucleotide name;
         x.split('%')[-2] Padlock number of the system
     """
 
-    sel_col_numbers = [0, 1, 2, 3, 6, 11, 12, 13]  # Just to skip unnecessary cols
+    df = pd.read_csv(path_to_csv, dtype={'system.number': str},
+                     usecols=[0, 1, 2, 3, 6, 11, 12, 13])
 
-    df = pd.read_csv(path_to_csv, dtype={'system.number': str}).iloc[:, sel_col_numbers]
-    df['SysID'] = df['system'] + '%' + df['system.number'] + '%' + df['seqid']
+    # Create unique DefSystems IDs
+    df['DS_ID'] = df['system'] + '%' + df['system.number'] + '%' + df['seqid']
 
     # Collection of systems with antiparallel genes if needed
-    anti_sys = (df.loc[:, ('strand', 'SysID')]
-                  .groupby('SysID')
-                  .agg(lambda x: len(x.unique()))
-                  .query('strand > 1'))
-    anti_sys_names = [path_to_csv.stem[:15] + '_' + i for i in anti_sys.index.to_list()]
-    
-    # Choose uniform direction
-    for curr_sys in df.SysID.unique():
-        if not df.loc[(df.loc[:, 'SysID'] == curr_sys) & (df.loc[:, 'protein.name'] == 'BrxC')].empty:
-            df.loc[(df.loc[:, 'SysID'] == curr_sys), ['strand']
-                   ] = df.loc[(df.loc[:, 'SysID'] == curr_sys) & (df.loc[:, 'protein.name'] == 'BrxC'), 'strand'
-                              ].values[0]
-        else:
-            df.loc[(df.loc[:, 'SysID'] == curr_sys), ['strand']
-                   ] = (df.loc[(df.loc[:, 'SysID'] == curr_sys), ['strand', 'SysID']]
-                          .groupby('SysID')
-                          .agg(lambda x: x.value_counts().index[x.value_counts().argmax()])
-                          .values[0][0])
+    anti_defsys_ids = (df.loc[:, ('strand', 'DS_ID')]
+                       .groupby('DS_ID')
+                       .agg(lambda x: x.nunique())
+                       .query('strand > 1')
+                       .index)
+    anti_defsys_names = [path_to_csv.stem[:15] + '_' + i for i in anti_defsys_ids]
 
-    # Ignore duplicated systems
-    prot_from_dupl_sys = df['target.name'].value_counts()[df['target.name'].value_counts() > 1].index
-    dupl_sys_ids = df[df['target.name'].isin(prot_from_dupl_sys)].SysID.unique()
-    dupl_sys_list = [path_to_csv.stem[:15] + '_' + i for i in dupl_sys_ids]
-    df = df[~df.SysID.isin(dupl_sys_ids)]
+    # Choose uniform strandness/direction for non-unidirectional DS
+    if anti_defsys_names:
+        for curr_defsys in df.DS_ID.unique():
+            # Checking for BrxC
+            have_brxc = (df['DS_ID'] == curr_defsys) & (df['protein.name'] == 'BrxC')
+            # If present, select its direction
+            if not df.loc[have_brxc].empty:
+                df.loc[(df.loc[:, 'DS_ID'] == curr_defsys), ['strand']
+                       ] = df.loc[have_brxc, 'strand'].values[0]
+            else:
+                # If not, by voting
+                df.loc[(df.DS_ID == curr_defsys), ['strand']
+                       ] = df.loc[(df.DS_ID == curr_defsys), ['strand']
+                                  ].value_counts().index[0][0]
 
-    # Prot ID only number w/o nucleotide ID
-    df.loc[:, ['target.name']] = df['target.name'].apply(lambda x: x.split('_')[-1])
+    # Log and ignore DS with proteins with duplicated DS assignment
+    duplicated_prots = df['target.name'].value_counts()[df['target.name'].value_counts() > 1].index
+    dupl_defsys_ids = df[df['target.name'].isin(duplicated_prots)].DS_ID.unique()
+    dupl_defsys_names = [path_to_csv.stem[:15] + '_' + i for i in dupl_defsys_ids]
 
-    # Final df
-    df_result = df.loc[:, ['SysID', 'start', 'end', 'strand']].groupby('SysID').agg(coords_selector)
-    df_result['proteins_ids'] = (df.loc[:, ('target.name', 'SysID')]
-                                 .groupby('SysID')
-                                 .agg(lambda x: x.unique())
-                                 )
+    # Add protein annotation
+    df_proteins = df.iloc[:, [3, 4, 2, 1, 5, 6, 7]].copy()
+    df_proteins.columns = ('Protein', 'Padloc_ann', 'System', 'Nucleotide', 'Start', 'End', 'Strand')
+    df_proteins['Localisation'] = 'no'
+    # --- Merge duplicated DS assignment
+    df_dupl_merged = (df_proteins.loc[df_proteins.Protein.isin(duplicated_prots)]
+                                 .groupby(
+        ['Protein', 'Padloc_ann', 'Nucleotide', 'Start', 'End', 'Strand', 'Localisation']
+                                         )
+                                 .agg({'System': lambda x: f'DUPL_{",".join(x)}'})
+                                 .reset_index()
+                      )
+    df_proteins_fin = pd.concat([df_proteins.loc[~df_proteins.Protein.isin(duplicated_prots)],
+                                 df_dupl_merged
+                                 ]
+                                )
+
+    df = df[~df.DS_ID.isin(dupl_defsys_ids)]
+
+    # Summary table
+    df_result = df.loc[:, ['DS_ID', 'start', 'end', 'strand']].groupby('DS_ID').agg(coords_selector)
+    df_result = df_result.astype({'start': 'int32',
+                                  'end': 'int32'})
+    # --- Get only proteins numbers of all DS
+    df_result['Target_DS_Prots'] = df.loc[:, ['DS_ID', 'target.name']].groupby('DS_ID').agg(get_proteins_numbers)
+
+    # --- Check presence of any inner genes in every DS
+    df_result['Have_inner'] = df_result.Target_DS_Prots.apply(lambda x: set(x) != set(range(min(x), max(x) + 1)))
+
+    # --- Find intersections of DS having inners with DS without inners
     df_result.reset_index(inplace=True)
-    
-    # return df_result
-    return df_result, dupl_sys_list, anti_sys_names
 
+    merged = df_result.loc[df_result['Have_inner']].merge(df_result.loc[~df_result['Have_inner']], how='cross')
+    merged_inners = merged.query('(start_x <= start_y <= end_x) or (start_x <= end_y <= end_x)')
 
-def extract_region_gff(gff_file: str | Path,
-                       chrom_id: str,
-                       start_coord: int,
-                       end_coord: int,
-                       extracted_gff_file: str | Path
-                       ) -> None:
-    """
-    Extract given interval from input gff-file
-    and save it to output gff-file
+    df_result.set_index('DS_ID', inplace=True)
 
-    :param gff_file:
-    :param chrom_id:
-    :param start_coord:
-    :param end_coord:
-    :param extracted_gff_file:
-    :return:
-    """
+    df_result['Inner_DS'] = merged_inners.loc[:, ['DS_ID_x', 'DS_ID_y']].groupby('DS_ID_x').agg(
+        lambda x: x.unique().tolist())
 
-    cmd = ['bedtools', 'intersect',
-           '-a', gff_file,  # Input GFF file
-           '-b', 'stdin',
-           '-wa'
-           ]
+    df_result.fillna({'Inner_DS': ''}, inplace=True)
 
-    bed_region = f'{chrom_id}\t{start_coord - 1}\t{end_coord}\n'
+    # For DS having inners write proteins numbers of inner DS
+    df_result['Inner_DS_Prots'] = None
+    for sys_id, defsys in df_result.loc[df_result['Inner_DS'] != '', 'Inner_DS'].items():
+        inner_defsys_prots = [x for xs in df_result.loc[defsys, 'Target_DS_Prots'] for x in xs]
+        df_result.at[sys_id, 'Inner_DS_Prots'] = inner_defsys_prots
 
-    with open(extracted_gff_file, mode='w') as file:
-        subprocess.run(cmd, input=bed_region, text=True, stdout=file)
+    df_result.rename({'start': 'Start', 'end': 'End', 'strand': 'Strand'}, axis=1, inplace=True)
 
+    return df_result, dupl_defsys_names, anti_defsys_names, df_proteins_fin
 
-def add_loc_marks_to_gff(gff_file: str, defsys_type, defsys_params):
-    gff_df_columns = ['Seqid', 'Source', 'Type', 'Start', 'End', 'Score', 'Strand', 'Phase', 'Comment']
-    gff_df = pd.read_csv(gff_file, sep='\t', header=None, names=gff_df_columns)
+"""
+input_folder_path = Path('/home/holydiver/Main/2024_BREX/Data/TMP/Exmpls/Padloc_big')
+assert input_folder_path.exists(), 'Input folder does not exist!'
+target_defsys = 'brex'
+output_path_results = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
+"""
 
-    gff_df['GeneID'] = gff_df.Comment.apply(lambda x: re.search(r'ID=\d+_(\d+)', x).group(1))
-    gff_df['Loc_mark'] = 'No'
-    
-    # defsys_prot_ids = [_.split('_')[-1] for _ in defsys_params['proteins_ids']]
-    # gff_df.loc[gff_df['GeneID'].isin(defsys_prot_ids), ['Loc_mark']] = defsys_type.split('%')[0]
-    gff_df.loc[gff_df['GeneID'].isin(defsys_params['proteins_ids']), ['Loc_mark']] = defsys_type.split('%')[0]
+args = parse_arguments()
+input_folder_path = Path(args.input_folder_path)
+assert input_folder_path.exists(), 'Input folder does not exist!'
+target_defsys = args.ds
+output_path_results = Path(args.output_path_results)
 
-    if defsys_params['strand'] == '+':
-        flank_types = ('upstream_', 'downstream_')
-    else:  # defsys_params['strand'] == '-'
-        flank_types = ('downstream_', 'upstream_')
+duplicate_defsys = []
+antiparallel_defsys = []  # List of nucleotides w/o DS of interest
+no_target_defsys_genomes = []  # List of nucleotides w/o DS of interest
+protein_annotations = pd.DataFrame(columns=('Protein', 'Padloc_ann',
+                                            'System', 'Nucleotide',
+                                            'Start', 'End',
+                                            'Strand', 'Localisation'
+                                            )
+                                   )
 
-    flank_size = gff_df.loc[gff_df['Start'] < defsys_params['start']].shape[0]
-    gff_df.loc[gff_df['Start'] < defsys_params['start'], ['Loc_mark']] = [flank_types[0] + str(i) for i in
-                                                                          range(flank_size, 0, -1)]
+for folder in input_folder_path.iterdir():
+    print(f'---Processing {folder.name}---')
+    df_all, dupl_curr, anti_curr, prot_curr = create_defsys_summary(folder / (folder.name + '_padloc.csv'))
 
-    flank_size = gff_df.loc[gff_df['End'] > defsys_params['end']].shape[0]
-    gff_df.loc[gff_df['End'] > defsys_params['end'], ['Loc_mark']] = [flank_types[1] + str(i) for i in
-                                                                      range(1, flank_size + 1, 1)]
+    curr_accession_folder = output_path_results / folder.name
+    curr_accession_folder.mkdir(parents=True, exist_ok=True)
 
-    gff_df.loc[gff_df['Loc_mark'] == 'No', ['Loc_mark']] = 'inner'
+    df_all.to_csv(curr_accession_folder / (folder.name + '_DS_summary.tsv'), sep='\t')
 
-    gff_df.loc[:, 'Comment'] = gff_df.Comment + 'loc_mark=' + gff_df.Loc_mark + ';'
+    # Select only DefSys of interest
+    df_selected = df_all.loc[df_all.index.str.startswith(target_defsys)]
 
-    return gff_df
+    if df_selected.empty:
+        no_target_defsys_genomes.append(folder.name)
+    else:
+        df_selected.to_csv(curr_accession_folder / (folder.name + f'_{target_defsys}.tsv'), sep='\t')
 
+    if dupl_curr:
+        duplicate_defsys.extend(dupl_curr)
+    if anti_curr:
+        antiparallel_defsys.extend(anti_curr)
 
-def check_bounds(df, start, end, up_flank, down_flank, assembly, defsys, strand) -> str:
-    """
-    Check if given flanks extend beyond the nucleotide boundaries
-    """
-    if strand == '+':
-        bound_marks = ('upstream', 'downstream')
-    else:  # strand == '-'
-        bound_marks = ('downstream', 'upstream')
-    
-    bounds = []
-    
-    up_bound_interval = start - df.Start.iloc[0]
-    down_bound_interval = df.End.iloc[df.shape[0] - 1] - end
-    if up_bound_interval < up_flank:
-        bounds.append(assembly + '_' + defsys + '\t' + bound_marks[0] + '\t' + str(up_flank - up_bound_interval))
-    if down_bound_interval < down_flank:
-        bounds.append(assembly + '_' + defsys + '\t' + bound_marks[1] + '\t' + str(down_flank - down_bound_interval))
-   
-    return '\n'.join(bounds)
+    protein_annotations = pd.concat([protein_annotations, prot_curr])
 
+logs = (duplicate_defsys, antiparallel_defsys, no_target_defsys_genomes)
 
-def read_fasta(fasta_file):
-    name, seq = None, []
-    for line in fasta_file:
-        if line.startswith('>'):
-            if name:
-                yield name, ''.join(seq)
-            name, seq = line, []
-        else:
-            seq.append(line)
-    if name:
-        yield name, ''.join(seq)
-
-
-def extract_region_fasta(fasta_file: Path,
-                         prot_ids: list,
-                         extracted_fasta_file: Path) -> None:
-    """
-    Extracts sequences with specific IDs from fasta-file
-    """
-
-    count, stop_num = 0, len(prot_ids)
-    
-    with open(fasta_file, mode='r') as f_read, open(extracted_fasta_file, mode='w') as f_write:
-        for name, seq in read_fasta(f_read):
-            if name.strip()[1:] in prot_ids:
-                f_write.write(name + seq)
-                count += 1
-                if count == stop_num:
-                    break
-
-
-# #### Regs summary
-
-# In[8]:
-
-
-def create_region_summary(df_with_marks: pd.DataFrame, direction: str, meta_info: tuple) -> dict:
-    """
-    meta_info = (defsys_type, nucleotide, accession)
-    """
-    
-    region_proteins = df_with_marks.GeneID.to_list()
-    
-    if direction == '-':
-        region_proteins = region_proteins[::-1]
-        defsys_idxs = list(df_with_marks.set_axis([_ for _ in range(df_with_marks.shape[0])][::-1], axis='index'
-                                                  ).query('Loc_mark == @meta_info[0]').index)[::-1]
-        inner_idxs = list(df_with_marks.set_axis([_ for _ in range(df_with_marks.shape[0])][::-1], axis='index'
-                                                 ).query('Loc_mark == "inner"').index)
-    else:  # direction == '+'
-        defsys_idxs = list(df_with_marks.query('Loc_mark == @meta_info[0]').index)
-        inner_idxs = list(df_with_marks.query('Loc_mark == "inner"').index)
-        
-    final_region = {'proteins_ids': region_proteins, 
-                    'defsys_idxs': defsys_idxs,
-                    'inner_idxs': inner_idxs,
-                    'defsys_type': meta_info[0],
-                    'nucleotide': meta_info[1],
-                    'accession': meta_info[2]
-                    }
-    
-    return final_region
-
-
-input_def_sys_list = ['brex']
-input_folder_path = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/01_Padloc_hmm_custom/padloc_hmm_custom')
-output_path_regions = Path('/home/holydiver/Main/2024_BREX/Data/New_data/output')
-output_path_summaries = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
-input_up_flank, input_down_flank = 10000, 10000
-
-dupl_sys = []
-antiparallel_sys = []
-no_selected_defsys_genomes = []  # List of nucleotides w/o DefSys of interest
-no_full_flanks = []  # List of nucleotides where the distance to the edge is less than the given flank
-
-regions_summary_collection = []  # List of summaries for defsys regions for JSON-file
-
-output_path_summaries.mkdir(parents=True, exist_ok=True)
-output_path_regions.mkdir(parents=True, exist_ok=True)
-
-# Logs writing
-logs = (dupl_sys, antiparallel_sys, no_selected_defsys_genomes, no_full_flanks)
-f_names = ('duplicates.txt',
-           'antiparallel.txt',
-           'no_selected_defsys.txt',
-           'no_full_flanks.txt'
+f_names = ('duplicate_defsys.txt',
+           'antiparallel_defsys.txt',
+           'no_target_defsys_genomes.txt'
            )
 
 for log, f_name in zip(logs, f_names):
-    with open(output_path_summaries / f_name, mode='w') as f:
+    with open(output_path_results / f_name, mode='w') as f:
         for i in log:
             f.write(i + '\n')
 
-with open(output_path_summaries / 'regions_summary.json', mode='w') as f:
-    json.dump(regions_summary_collection, f, indent=4)
+protein_annotations.to_csv(output_path_results / 'protein_annotations.tsv', sep='\t', index=False)
