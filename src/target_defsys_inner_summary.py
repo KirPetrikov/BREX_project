@@ -133,7 +133,7 @@ logs = (
 logs_names = (
     f'target_{target_defsys}_inner_prots_outbonds.txt',
     f'target_{target_defsys}_inner_coords_outbonds.txt',
-    f'target_{target_defsys}inner_duplicates.txt'
+    f'target_{target_defsys}_inner_duplicates.txt'
 )
 
 for data, name in zip(logs, logs_names):
