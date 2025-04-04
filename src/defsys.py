@@ -3,6 +3,7 @@ Scripts collection for import
 """
 
 import pandas as pd
+import re
 
 
 def find_dupl_defsys(df: pd.DataFrame) -> pd.DataFrame:
@@ -132,31 +133,6 @@ def parse_padloc_csv(path_to_csv, short: bool = True) -> pd.DataFrame:
         return df
 
 
-# def parse_hmmer_domtblout_dict(input_dom_path):
-#     pat = re.compile(r'[\w.\-+]+')
-#     colnames = ['Protein', 'Target_accession', 'Target_len', 'HMM_prot_name', 'HMM_profile',
-#                 'HMM_len', 'Eval_full', 'Score_full', 'Bias_full', 'N_dom',
-#                 'Total_dom', 'Eval_c', 'Eval_i', 'Score_dom', 'Bias_dom', 'HMM_start',
-#                 'HMM_end', 'Ali_start', 'Ali_end', 'Envelope_start', 'Envelope_end', 'Prob_acc', 'Description']
-#
-#     hmmer_domtblout_lines = {}
-#     with open(input_dom_path) as file:
-#         idx_count = 0
-#         for line in file:
-#             if line.startswith('#'):
-#                 continue
-#             else:
-#                 hmmer_domtblout_lines[idx_count] = re.findall(pat, line.strip())
-#                 idx_count += 1
-#     df = pd.DataFrame.from_dict(hmmer_domtblout_lines, orient='index')
-#     df = df.astype({0: str, 1: str, 2: int, 3: str, 4: str, 5: int, 6: float,
-#                     7: float, 8: float, 9: int, 10: int, 11: float, 12: float,
-#                     13: float, 14: float, 15: int, 16: int, 17: int, 18: int,
-#                     19: int, 20: int, 21: float, 22: str})
-#     df = df.set_axis(colnames, axis=1)
-#     return df
-
-
 def parse_hmmer_domtblout(input_dom_path) -> pd.DataFrame:
     """
     Read HMMER-format domtblout-file
@@ -184,5 +160,33 @@ def parse_hmmer_domtblout(input_dom_path) -> pd.DataFrame:
 
     return df
 
+
+def parse_gff(path_to_gff) -> pd.DataFrame:
+    gff_cols_names = ('Chrom', 'Sourse', 'Feature', 'Start', 'End',
+                      'Score', 'Strand', 'Frame', 'Comment')
+    df = pd.read_csv(path_to_gff,
+                     sep='\t',
+                     names=gff_cols_names,
+                     dtype={'Chrom': str, 'Sourse': str, 'Feature': str,
+                            'Start': int, 'End': int, 'Score': float,
+                            'Strand': str, 'Frame': str, 'Comment': str}
+                     )
+    return df
+
+
+def add_gene_id_to_gff(df: pd.DataFrame, add_nucl: bool = True) -> pd.DataFrame:
+    """
+    For comment lines like: "ID=1_1"
+    where first digit is nucleotide/chromosome, second is gene index
+
+    Params:
+    with_nucl: Add nucleotide/chromosome ID or not
+    """
+    pattern = re.compile(r'ID=\d+_(\d+)')
+    df['Gene_ID'] = df.Comment.apply(lambda x: int(re.search(pattern, x).group(1)))
+    if add_nucl:
+        df = df.astype({'Gene_ID': str})
+        df.loc[:, 'Gene_ID'] = df.Chrom + '_' + df.Gene_ID
+    return df
 
 
