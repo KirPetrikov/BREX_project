@@ -23,6 +23,7 @@ import pandas as pd
 from pathlib import Path
 
 output_path_results = Path('/home/holydiver/Main/2024_BREX/Data/20250324_dupl_brex_processing')
+output_path_results.mkdir(parents=True, exist_ok=True)
 
 duplicates_processing_json = Path('dupl_brex_processing_data.json')
 
@@ -32,7 +33,10 @@ input_prot_annot_path = Path('/home/holydiver/Main/2024_BREX/Data/20250323_defsy
 with open(duplicates_processing_json) as f:
     duplicates_processing_data = json.load(f)
 
-df_sum = pd.read_json(input_summary_path, orient='index')
+df_sum = pd.read_json(input_summary_path,
+                      orient='index',
+                      dtype={'Nucleotide': str, 'System': str, 'Start': int, 'End': int,
+                             'Strand': str, 'DS_Prots': list, 'Have_inner': bool})
 
 # Add accession
 input_accessions = Path('/home/holydiver/Main/2024_BREX/Data/Accessions_summary.tsv')
