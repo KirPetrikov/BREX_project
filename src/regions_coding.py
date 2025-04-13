@@ -1,5 +1,5 @@
 """
-v0.4b
+v0.4c
 """
 import json
 import pandas as pd
@@ -8,12 +8,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-BREX_SET = {'BrxA', 'BrxB', 'BrxC',
-            'BrxD', 'BrxE', 'BrxF',
-            'BrxHII', 'BrxHI', 'BrxL',
-            'BrxP', 'PglW', 'PglXI',
-            'PglX', 'PglZ'
-            }
+BREX_PROTEINS = {'BrxA', 'BrxB', 'BrxC',
+                 'BrxD', 'BrxE', 'BrxF',
+                 'BrxHII', 'BrxHI', 'BrxL',
+                 'BrxP', 'PglW', 'PglXI',
+                 'PglX', 'PglZ'
+                 }
 
 
 def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
@@ -24,6 +24,7 @@ def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
     :param cutoff:
     :return:
     """
+    
     clusters_list = (
         df.query('Annotation == @prot_name & Cluster_size > @cutoff')['Cluster']
           .unique()
@@ -35,7 +36,7 @@ def modify_ann_prot(df: pd.DataFrame, prot_name: str, cutoff: int = 0) -> set:
                                                          )
                       }
 
-    df.loc[df['Cluster'].isin(clusters_list), 'Annotation'] = (
+    df.loc[df['Cluster'].isin(clusters_list), ['Annotation']] = (
         df.loc[df['Cluster'].isin(clusters_list), ['Cluster']]
           .apply(lambda x: annot_to_reset[str(x.values[0])], axis=1)
                                                                 )
@@ -53,32 +54,50 @@ def mask_singletons(df: pd.DataFrame, cutoff: int = 1) -> None:
     df.loc[df['Cluster_size'] < cutoff, ['Annotation']] = '%MASK' + str(cutoff)
 
 
+def create_region(protein: str, annotations: dict) -> str:
+    """
+
+    :param protein:
+    :param annotations:
+    :return:
+    """
+    try:
+        return annotations[protein]
+    except KeyError:
+        print('Warning: Protein',
+              protein,
+              'does not has annotation!',
+              file=sys.stderr
+              )
+        return protein
+
+
 input_annot = Path('/home/holydiver/Main/2024_BREX/Data/Prrr_Data/2024_05_07_full_annotation.tsv')
 input_path = Path('/home/holydiver/Main/2024_BREX/Data/20250118_exctracted')
 input_json_summary = 'regions_summary.json'
 
 consider_upstream = True
-prots_to_consider_clus = ('WYL', 'BrxC')
+prots_to_consider_clus = (('WYL',0),)
 prot_singl_cutoff = 0
 
 
 output_path = Path('/home/holydiver/Main/2024_BREX/Data/New_data')
-output_tsv_name = '20250124_unique_regions_summary.tsv'
-output_json_name = '20250124_unique_regions_accessions.json'
+output_tsv_name = '20250124_unique_regions_WYL_summary.tsv'
+output_json_name = '20250124_unique_regions_WYL_accessions.json'
 
 
 annot_df = pd.read_csv(input_annot, sep='\t').loc[:, ['Protein', 'Annotation', 'Cluster', 'Cluster_size']]
 
-curr_brex_set = BREX_SET
+curr_brex_set = BREX_PROTEINS
 
-# for protein in prots_to_consider_clus:
-#     annot_to_add = modify_ann_prot(annot_df, protein)
-#     if protein in BREX_SET:
-#         curr_brex_set.update(_ for _ in annot_to_add)
+for protein in prots_to_consider_clus:
+    annot_to_add = modify_ann_prot(annot_df, protein[0], protein[1])
+    if protein in BREX_PROTEINS:
+        curr_brex_set.update(_ for _ in annot_to_add)
 
 # mask_singletons(annot_df)
 
-annot_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
+annotations_dict = dict(zip(annot_df.Protein, annot_df.Annotation))
 
 with open(input_path / input_json_summary) as f:
     regions_summary = json.load(f)
@@ -102,7 +121,7 @@ for curr_region in regions_summary:
             curr_region['nucleotide'] + '_' + i for i in curr_region['proteins_ids'][upstream_idx:end_idx]
                                          ]
         annotated_region = ','.join(
-            [annot_dict[protein] for protein in curr_region_selected_proteins]
+            [create_region(prot, annotations_dict) for prot in curr_region_selected_proteins]
                                     )
 
         if annotated_region in unique_regions_summary:
@@ -145,3 +164,4 @@ unique_regions_df.to_csv(output_path / output_tsv_name, sep='\t', index=False)
 
 with open(output_path / output_json_name, mode='w') as f:
     json.dump(unique_regions_accessions, f, indent=4)
+
