@@ -60,8 +60,8 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
 
     # Get only proteins numbers of all DS
     df_result['DS_Prots'] = (df.loc[:, ['DS_ID', 'Protein']]
-                             .groupby('DS_ID')
-                             .agg(lambda x: [int(i.split('_')[-1]) for i in x]))
+                               .groupby('DS_ID')
+                               .agg(lambda x: [int(i.split('_')[-1]) for i in x]))
 
     # Check presence of any inner genes in every DS
     df_result['Have_inner'] = df_result['DS_Prots'].apply(lambda x: set(x) != set(range(min(x), max(x) + 1)))
