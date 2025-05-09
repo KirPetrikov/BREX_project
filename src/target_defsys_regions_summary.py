@@ -1,4 +1,4 @@
-"""v0.2
+"""v0.2b
 Parse defense systems summary and gff-file to create summary for target DS region inner genes
 and get ID for up/down genes.
 Genes that intersect with the outermost genes of the target system are considered external (up- or downstream).
@@ -71,7 +71,7 @@ for ds_id, values in data_summary.items():
         curr_gff = parse_gff(gff_path)
         curr_gff = add_gene_id_to_gff(curr_gff, add_nucl=False)
 
-        # Пересечения с границами региона целевой ЗС считаем внутренними генами
+        # Пересечения с границами региона целевой ЗС считаем внешними генами
         # Делаем проверку на такие гены
         left_intersect = (curr_gff.loc[
             (curr_gff.Chrom == values['Nucleotide'])
@@ -147,12 +147,8 @@ for ds_id, values in data_summary.items():
                 # Проверяем, что целевой нуклеотид
                 (df_summary.Nucleotide == values['Nucleotide'])
                 &
-                # Смотрим пересечения
-                (
-                    ((values['Start'] <= df_summary.Start) & (df_summary.Start <= values['End']))
-                    |
-                    ((values['Start'] <= df_summary.End) & (df_summary.End <= values['End']))
-                )
+                # Смотрим полностью вложенные системы
+                ((values['Start'] <= df_summary.Start) & (df_summary.End <= values['End']))
                 &
                 # Саму целевую ЗС не включаем
                 (~(df_summary.index == ds_id))
@@ -162,20 +158,9 @@ for ds_id, values in data_summary.items():
                 extracted_inner_defsys = extracted_inner_defsys.loc[
                                            ~(extracted_inner_defsys.System == 'DMS_other')
                                                                     ]
-
             if not extracted_inner_defsys.empty:
-                inner_defsys = extracted_inner_defsys.System.tolist()
-
-                # Проверка на тот случай, если какие-то из генов, входящих во
-                # внутреннюю ЗС, окажутся за пределами региона
-                # Берём ИД всех белков внутр. ЗС и оставляем только те,
-                # которые пересекаются со множеством всех белков региона.
-                all_inner_defsys_p = set([x for xs in extracted_inner_defsys.DS_Prots for x in xs])
-                all_region_p = set([i for i in range(min(values['DS_Prots']), max(values['DS_Prots']) + 1)])
-                inner_defsys_prots = list(all_inner_defsys_p.intersection(all_region_p))
-
-                data_target[ds_id]['Inner_DS'] = inner_defsys
-                data_target[ds_id]['Inner_DS_Prots'] = inner_defsys_prots
+                data_target[ds_id]['Inner_DS'] = extracted_inner_defsys.System.tolist()
+                data_target[ds_id]['Inner_DS_Prots'] = [x for xs in extracted_inner_defsys.DS_Prots for x in xs]
 
                 # Проверка наличия ЗС с дупликацией
                 curr_dupl_defsys = extracted_inner_defsys.index.intersection(duplicates)
