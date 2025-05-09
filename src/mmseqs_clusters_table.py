@@ -54,7 +54,7 @@ clss_size.plot.bar()
 
 for i in range(len(clss_size)):
     plt.text(i - 0.3,
-             clss_size.iloc[i] + 400,
+             clss_size.iloc[i] * 1.06,
              clss_size.iloc[i],
              fontsize=12)
 

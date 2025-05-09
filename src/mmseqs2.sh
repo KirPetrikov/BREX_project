@@ -20,7 +20,7 @@ mmseqs createtsv "${RESULT}"/db/db "${RESULT}"/db/db "${RESULT}"/clust/clust "${
 
 echo '*** Create cluster table and summary histogram ***'
 
-python3 ~/bin/mmseqs_clusters_table.py -i "${RESULT}"/mmseqs_clusters.tsv -o "${RESULT}"
+python3 mmseqs_clusters_table.py -i "${RESULT}"/mmseqs_clusters.tsv -o "${RESULT}"
 
 echo '*** Finished ***'
 
