@@ -55,6 +55,47 @@ def co_occurence_matrix(data_items: list | tuple, to_dataframe=True) -> np.ndarr
     return co_occurrence_mtx
 
 
+def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
+                    n_top=10) -> dict[tuple: int] | dict[str: int]:
+    """
+    Create dictionary with top n co-occured pairs of items
+
+    :param co_occurrence_mtx: Co-occurence matrix
+    :param n_top: number of top entries to get
+    :return:
+    """
+
+    dataframe = False
+
+    if isinstance(co_occurrence_mtx, pd.DataFrame):
+        items = co_occurrence_mtx.index
+        co_occurrence_mtx = co_occurrence_mtx.values
+        dataframe = True
+
+    triu_indices = np.triu_indices_from(co_occurrence_mtx, k=1)
+    upper_values = co_occurrence_mtx[triu_indices]
+    top_n_idxs = np.argpartition(-upper_values, n_top)[:n_top]
+    top_n_sorted = top_n_idxs[np.argsort(-upper_values[top_n_idxs])]
+
+    top_n_pairs = [(triu_indices[0][i], triu_indices[1][i]) for i in top_n_sorted]
+
+    top_n_values = [co_occurrence_mtx[i, j] for i, j in top_n_pairs]
+
+    top_n_fin = {}
+
+    if dataframe:
+        for i, j in zip(top_n_pairs, top_n_values):
+            # curr_pair = tuple(items[list(i)])
+            # top_n_fin[curr_pair] = j
+            curr_pair = items[list(i)].to_list()
+            top_n_fin[f'{curr_pair[0]}, {curr_pair[1]}'] = j
+    else:
+        for i, j in zip(top_n_pairs, top_n_values):
+            top_n_fin[i] = j
+
+    return top_n_fin
+
+
 def find_dupl_defsys(df: pd.DataFrame) -> pd.DataFrame:
     """
     Select rows corresponding to DS where there is protein duplications
