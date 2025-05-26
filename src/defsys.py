@@ -85,10 +85,10 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
 
     if dataframe:
         for i, j in zip(top_n_pairs, top_n_values):
-            # curr_pair = tuple(items[list(i)])
-            # top_n_fin[curr_pair] = j
-            curr_pair = items[list(i)].to_list()
-            top_n_fin[f'{curr_pair[0]}, {curr_pair[1]}'] = j
+            curr_pair = tuple(items[list(i)])
+            top_n_fin[curr_pair] = j
+            # curr_pair = items[list(i)].to_list()
+            # top_n_fin[f'{curr_pair[0]}, {curr_pair[1]}'] = j
     else:
         for i, j in zip(top_n_pairs, top_n_values):
             top_n_fin[i] = j
