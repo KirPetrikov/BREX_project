@@ -1,5 +1,5 @@
 """
-v0.1b
+v0.1c
 """
 import json
 import re
@@ -26,7 +26,8 @@ only_first_annotations = {'Cluster': [],  # Top-1 annotations for table
                           'EVal': [],
                           'Prob': []}
 
-pattern_ann = re.compile(r'\d+ +(\w+) ')
+pattern_table = re.compile(r'\d+ +(\w+) ')
+pattern_descr = re.compile(r'>(\w+) +(.+);.+.$')
 
 for file_name in input_hh_suite_results.iterdir():
     if file_name.suffix == '.hhr':
@@ -46,7 +47,7 @@ for file_name in input_hh_suite_results.iterdir():
 
             # Only top hit
             only_first_annotations['Cluster'].append(cluster_id)
-            only_first_annotations['PDB_ID'].append(re.search(pattern_ann, curr_line[:35]).group(1))
+            only_first_annotations['PDB_ID'].append(re.search(pattern_table, curr_line[:35]).group(1))
             only_first_annotations['EVal'].append(float(curr_line[41:49].strip()))
             only_first_annotations['Prob'].append(float(curr_line[35:41].strip()))
 
@@ -58,22 +59,23 @@ for file_name in input_hh_suite_results.iterdir():
                 elif line.startswith('>'):
                     count_n_hits += 1
 
-                    curr_pdb_id = line[1:10].strip()
-                    curr_descr = '; '.join(line[10:].strip().split(';')[:2])
+                    curr_search = re.search(pattern_descr, line)
+                    curr_pdb_id = curr_search.group(1)
+                    curr_descr = curr_search.group(2)
 
                     if count_n_hits == 1:
-                        only_first_annotations['PDB_ann'].append(curr_descr)
+                        only_first_annotations['PDB_ann'].append(
+                            curr_search.group(2).split(';')[0]
+                        )
 
                     stat_line = file.readline()
-                    curr_e_val = float(stat_line.split('  ')[1][8:])
-                    curr_prob = float(stat_line.strip().split('  ')[0][7:])
 
                     curr_descriotion = {
                         f'Hit_No_{count_n_hits}': {
                             'PDB_ID': curr_pdb_id,
                             'Description': curr_descr,
-                            'EVal': curr_e_val,
-                            'Prob': curr_prob
+                            'EVal': float(stat_line.split('  ')[1][8:]),
+                            'Prob': float(stat_line.split('  ')[0][7:])
                         }
                     }
                     descriptions_catalog[cluster_id].update(curr_descriotion)
