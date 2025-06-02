@@ -3,7 +3,6 @@ Parse defense systems summary and gff-file to create summary for target DS regio
 and get ID for up/down genes.
 Genes that intersect with the outermost genes of the target system are considered external (up- or downstream).
 Logs cases when among inner DS occur intersections and duplicates.
-Can consider "DMS_other" genes as genes that are not related to defense systems.
 """
 import argparse
 import json
@@ -19,7 +18,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description='Parse defense systems summary and gff-file to create for target DS region '
                     'inner genes summary and get up/down genes. Logs cases when among inner DS occur duplicates. '
-                    'Can consider "DMS_other" genes as genes that are not related to defense systems.'
                                      )
     parser.add_argument('-p', '--padloc', type=str,
                         help='Path to the Padloc data (for gff-file).')
@@ -31,8 +29,6 @@ def parse_arguments():
                         help='Path to the results folder. Will be created if it does not exist.')
     parser.add_argument('-t', '--target', type=str,
                         help='Name or prefix of target defense system(s).')
-    parser.add_argument('-D', '--drop_dms', action='store_true',
-                        help='Set up flag if needed to consider DMS_other genes as non DS.')
     return parser.parse_args()
 
 
@@ -43,7 +39,6 @@ input_dupl_defsys_path = Path(args.duplicates)
 output_path_results = Path(args.out)
 output_path_results.mkdir(parents=True, exist_ok=True)
 target_defsys = args.target
-drop_dms = args.drop_dms
 
 with open(input_summary_path) as f:
     data_summary = json.load(f)
@@ -65,8 +60,6 @@ for ds_id, values in data_summary.items():
         print(f'---Processing {ds_id}---')
 
         data_target[ds_id] = values
-        data_target[ds_id]['Inner_DS'] = ''
-        data_target[ds_id]['Inner_DS_Prots'] = ''
 
         curr_gff = parse_gff(gff_path)
         curr_gff = add_gene_id_to_gff(curr_gff, add_nucl=False)
@@ -141,26 +134,26 @@ for ds_id, values in data_summary.items():
 
         # Смотрим внутренние ЗС
         curr_target_defsys = df_summary.loc[[ds_id]]
+        data_target[ds_id]['Inner_DS_full'] = ''
 
         if values['Have_inner']:
             extracted_inner_defsys = df_summary.loc[
                 # Проверяем, что целевой нуклеотид
                 (df_summary.Nucleotide == values['Nucleotide'])
                 &
-                # Смотрим полностью вложенные системы
-                ((values['Start'] <= df_summary.Start) & (df_summary.End <= values['End']))
+                # Смотрим пересечения ЗС с целевым регионом
+                (
+                    ((values['Start'] <= df_summary.Start) & (df_summary.Start <= values['End']))
+                    |
+                    ((values['Start'] <= df_summary.End) & (df_summary.End <= values['End']))
+                )
                 &
                 # Саму целевую ЗС не включаем
                 (~(df_summary.index == ds_id))
                 ]
 
-            if drop_dms:
-                extracted_inner_defsys = extracted_inner_defsys.loc[
-                                           ~(extracted_inner_defsys.System == 'DMS_other')
-                                                                    ]
             if not extracted_inner_defsys.empty:
-                data_target[ds_id]['Inner_DS'] = extracted_inner_defsys.System.tolist()
-                data_target[ds_id]['Inner_DS_Prots'] = [x for xs in extracted_inner_defsys.DS_Prots for x in xs]
+                data_target[ds_id]['Inner_DS_full'] = extracted_inner_defsys.DS_Prots.to_dict()
 
                 # Проверка наличия ЗС с дупликацией
                 curr_dupl_defsys = extracted_inner_defsys.index.intersection(duplicates)

@@ -1,5 +1,5 @@
 """
-v0.1c
+v0.1
 """
 import json
 import re
@@ -12,22 +12,23 @@ from pathlib import Path
 input_hh_suite_results = Path(sys.argv[1])
 input_n_hits = int(sys.argv[2])
 output_path = Path(sys.argv[3])
-prefix_for_save = input_hh_suite_results.name.lower()
+prefix_for_save = input_hh_suite_results.parents[0].name.lower()
 
 output_path.mkdir(parents=True, exist_ok=True)
 
-output_tsv_name = Path(f'{prefix_for_save}_pdb_top_annot.tsv')
-output_json_name = Path(f'{prefix_for_save}_pdb_annot.json')
+output_tsv_name = Path(f'{prefix_for_save}_pfam_top_annot.tsv')
+output_json_name = Path(f'{prefix_for_save}_pfam_annot.json')
+
+pattern_ann = re.compile(r'(\S+) ; (\S+) ;')
+pattern_descr = re.compile(r'>(\S+) ; (.+)')
 
 descriptions_catalog = {}  # Collections of all top annotations with descriptions
 only_first_annotations = {'Cluster': [],  # Top-1 annotations for table
-                          'PDB_ID': [],
-                          'PDB_ann': [],
+                          'Pfam_ID': [],
+                          'Pfam_ann': [],
                           'EVal': [],
-                          'Prob': []}
-
-pattern_table = re.compile(r'\d+ +(\w+) ')
-pattern_descr = re.compile(r'>(\w+) +(.+);.+.$')
+                          'Prob': []
+                          }
 
 for file_name in input_hh_suite_results.iterdir():
     if file_name.suffix == '.hhr':
@@ -46,10 +47,13 @@ for file_name in input_hh_suite_results.iterdir():
             curr_line = file.readline()
 
             # Only top hit
+            l_search = re.search(pattern_ann, curr_line[:35]).group
+
             only_first_annotations['Cluster'].append(cluster_id)
-            only_first_annotations['PDB_ID'].append(re.search(pattern_table, curr_line[:35]).group(1))
+            only_first_annotations['Pfam_ID'].append(l_search(1))
             only_first_annotations['EVal'].append(float(curr_line[41:49].strip()))
             only_first_annotations['Prob'].append(float(curr_line[35:41].strip()))
+            only_first_annotations['Pfam_ann'].append(l_search(2))
 
             # Top N hits with additional description
             count_n_hits = 0
@@ -59,26 +63,19 @@ for file_name in input_hh_suite_results.iterdir():
                 elif line.startswith('>'):
                     count_n_hits += 1
 
-                    curr_search = re.search(pattern_descr, line)
-                    curr_pdb_id = curr_search.group(1)
-                    curr_descr = curr_search.group(2)
-
-                    if count_n_hits == 1:
-                        only_first_annotations['PDB_ann'].append(
-                            curr_search.group(2).split(';')[0]
-                        )
+                    d_search = re.search(pattern_descr, line.strip()).group
 
                     stat_line = file.readline()
 
-                    curr_descriotion = {
+                    curr_description = {
                         f'Hit_No_{count_n_hits}': {
-                            'PDB_ID': curr_pdb_id,
-                            'Description': curr_descr,
+                            'Pfam_ID': d_search(1),
+                            'Description': d_search(2),
                             'EVal': float(stat_line.split('  ')[1][8:]),
-                            'Prob': float(stat_line.split('  ')[0][7:])
+                            'Prob': float(stat_line.strip().split('  ')[0][7:])
                         }
                     }
-                    descriptions_catalog[cluster_id].update(curr_descriotion)
+                    descriptions_catalog[cluster_id].update(curr_description)
 
                 else:
                     continue
