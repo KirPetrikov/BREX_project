@@ -301,7 +301,7 @@ for pair_clusters in coocc_data:
     if distances_all.nunique() > 1:
         dist_stat = ','.join([str(i) for i in distances_all.unique()])
     else:
-        dist_stat = '1'
+        dist_stat = str(distances_all.unique()[0])
 
     # Taxa, only genus
     pair_taxa = (df_accessions.loc[df_accessions.Nucleotide.isin(pair_nucleotides)]
