@@ -1,16 +1,44 @@
-"""v0.1
+"""v0.1b
 Coding of the composition of a region from inner genes into corresponding clusters.
 Statistics on clusters and proteins.
 """
 
+import argparse
 import pandas as pd
 import json
 
 from collections import defaultdict
 from pathlib import Path
-from defsys import co_occurence_matrix, top_co_occurred, parse_gff, add_gene_id_to_gff
+from defsys import co_occurence_matrix, top_co_occurred
 
 pd.options.mode.copy_on_write = True
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Clusters coding of other genes'
+                                                 ' and description summary')
+    parser.add_argument('-c', '--clusters_table', type=Path, required=True,
+                        help='Clusters table, .tsv')
+    parser.add_argument('-s', '--defsys_summary', type=Path, required=True,
+                        help='Defense systems summary, .json')
+    parser.add_argument('-a', '--accessions', type=Path, required=True,
+                        help='Table Nucleotide - Assembly accession - Taxon, .tsv')
+    parser.add_argument('-n', '--annotations', type=Path, required=True,
+                        help='Actual Padloc annotations table, .tsv')
+    parser.add_argument('-b', '--pdb70_parent', type=Path, required=True,
+                        help='PDB70 annotations directory')
+    parser.add_argument('-f', '--pfama_parent', type=Path, required=True,
+                        help='Pfam-A annotations directory')
+    parser.add_argument('-p', '--padloc_data', type=Path, required=True,
+                        help='Padloc results directory')
+    parser.add_argument('-t', '--cluster_size_threshold', type=int, default=2,
+                        help='Minimal size of clusters to be considered (default: 2)')
+    parser.add_argument('-m', '--top_coocc_number', type=int, default=10,
+                        help='Number of top cooccured pairs to select for descriptoin (default: 10)')
+    parser.add_argument('-o', '--output_folder', type=Path, required=True,
+                        help='Directory to save result. Will be created')
+
+    return parser.parse_args()
 
 
 def clusters_coding(data, clusters, threshold=2):
@@ -24,7 +52,7 @@ def clusters_coding(data, clusters, threshold=2):
 
     :param data: Defense systems summary
     :param clusters: Clusters dataframe
-    :param threshold: Minimal size of clusters to be considered
+    :param threshold: Minimal size of clusters to be considered (default: 2)
     :return: DataFrame
     """
 
@@ -63,6 +91,7 @@ def clusters_coding(data, clusters, threshold=2):
 
 def jaccard_index(id_1, id_2, df) -> tuple[float, set]:
     """
+    Calculate Jaccard index.
 
     :param id_1: Cluster_1 ID
     :param id_2: Cluster_2 ID
@@ -83,30 +112,19 @@ def get_accession(nucl, df_acc):
     return accession
 
 
-def get_dist_between_proteins(frame, path_to_gff_parent, df_acc):
+def get_dist_between_proteins(frame):
     """
-    Look in gff-file for two proteins and returns
-    distance between them (in b.p.)
+    Returns number of genes between two other genes
+    based on IDs difference
 
-    For use in .apply() on DataFrame:
+    For use in .apply() on pd.Series:
         |    index   |       'Protein'      |
         |------------|----------------------|
         | nucleotide | [Prot1_ID, Prot2_ID] |
     """
-    prot_pair = frame.Protein
-    # nucl = frame.name
-    # accession = df_acc.loc[df_acc.Nucleotide == nucl].iat[0, 0]
+    prot_ids = [int(i.split('_')[-1]) for i in frame]
 
-    accession = get_accession(frame.name, df_acc)
-
-    path_to_gff = path_to_gff_parent / f'{accession}/{accession}_prodigal.gff'
-    gff = parse_gff(path_to_gff)
-    gff = add_gene_id_to_gff(gff)
-
-    coords = gff.loc[gff.Gene_ID.isin(sorted([prot_pair[0], prot_pair[1]]))
-                     ][['Start', 'End']].values.flatten()
-
-    return coords[2] - coords[1]
+    return abs(prot_ids[0] - prot_ids[1]) - 1
 
 
 def read_fasta(fasta_file_path):
@@ -135,8 +153,8 @@ def extract_sequence(fasta_file_path,
 
     count, stop_num, selected_seqs = 0, len(prot_ids), []
 
-    with open(fasta_file_path, mode='r') as f:
-        for name, seq in read_fasta(f):
+    with open(fasta_file_path, mode='r') as file:
+        for name, seq in read_fasta(file):
             header = name.strip()[1:]
             if header in prot_ids:
                 seq = seq.replace("\n", "")
@@ -149,29 +167,23 @@ def extract_sequence(fasta_file_path,
     return selected_seqs
 
 
-input_clusters_table_path = Path(
-    '/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/20250413_brex_regions_clusters/Region/clusters_table.tsv')
+args = parse_args()
 
-input_defsys_summary_path = Path(
-    '/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/20250511_brex_regions_summary/inner_summary_brex_recalc.json')
+input_clusters_table_path = args.clusters_table
+input_defsys_summary_path = args.defsys_summary
+input_accessions_path = args.accessions
+input_annot_path = args.annotations
+input_pdb70_parent_path = args.pdb70_parent
+input_pfama_parent_path = args.pfama_parent
+input_padloc_data_path = args.padloc_data
+output_folder = args.output_folder
+cluster_size_threshold = args.cluster_size_threshold
+top_coocc_number = args.top_coocc_number
 
-input_accessions_path = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/Accessions_summary.tsv')
-
-# Only Padloc annotations
-input_annot_path = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/Curr_protein_annotations.tsv')
-
-input_reg_type = 'region'
-input_pdb70_parent_path = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/20250503_brex_annot_pdb70')
-input_pfama_parent_path = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/20250503_brex_annot_pfama')
-
-input_padloc_data_path = Path('/home/niagara/Storage/MetaRus/Common_dir/collections/complete_bacteria_collection/padloc')
-
-output_folder = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data/20250511_brex_regions_summary/'
-                     '20250605_inner_clus_stat')
 output_folder.mkdir(parents=True, exist_ok=True)
 
-pdb70_path = input_pdb70_parent_path / f'{input_reg_type}_pdb_top_annot.tsv'
-pfama_path = input_pfama_parent_path / f'{input_reg_type}_pfama_top_annot.tsv'
+pdb70_path = input_pdb70_parent_path / 'region_pdb_top_annot.tsv'
+pfama_path = input_pfama_parent_path / 'region_pfama_top_annot.tsv'
 
 # Read data
 with open(input_defsys_summary_path) as f:
@@ -211,7 +223,7 @@ df_clusters.loc[df_clusters.Nucleotide == 'miss', 'Nucleotide'] = df_clusters.lo
 # df_clusters = df_clusters.drop(['Start', 'End', 'Strand', 'Localisation'], axis=1)
 
 # Clusters coding
-df_prots_regs = clusters_coding(data_defsys, df_clusters, threshold=4)
+df_prots_regs = clusters_coding(data_defsys, df_clusters, threshold=cluster_size_threshold)
 
 df_defsys = pd.DataFrame.from_dict(data_defsys, orient='index').drop(
     ['Start', 'End', 'Strand', 'Inner_DS_full', 'Accession'], axis=1)
@@ -221,58 +233,63 @@ clusters_by_regions = df_defsys.loc[df_defsys.Others_Count > 0].Other_Cluster.to
 
 df_co_occurrence = co_occurence_matrix(clusters_by_regions)
 
-coocc_data = top_co_occurred(df_co_occurrence, 20)
+coocc_data = top_co_occurred(df_co_occurrence, top_coocc_number)
 
 # Skip Paris-proteins
 # del coocc_data[('CLUS_NZ_CP113504.1_1637', 'CLUS_NZ_CP149360.1_435')]
 
 coocc_prots_data = {}
 
-# for pair in [('CLUS_CP028720.1_1266', 'CLUS_NZ_OZ061338.1_1399')]:  # Test
-for pair in coocc_data:
-    j_idx, regs = jaccard_index(pair[0], pair[1], df_prots_regs)
+for pair_clusters in coocc_data:
+    j_idx, regs = jaccard_index(pair_clusters[0], pair_clusters[1], df_prots_regs)
 
-    ann_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[0]].PDB_ann.iat[0]
-    ann_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[1]].PDB_ann.iat[0]
-    id_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[0]].PDB_ID.iat[0]
-    id_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[1]].PDB_ID.iat[0]
-    eval_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[0]].EVal.iat[0]
-    eval_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair[1]].EVal.iat[0]
-    ann_1_pfama = df_pfama.loc[df_pfama.Cluster == pair[0]].Pfam_ann.iat[0]
-    ann_2_pfama = df_pfama.loc[df_pfama.Cluster == pair[1]].Pfam_ann.iat[0]
-    id_1_pfama = df_pfama.loc[df_pfama.Cluster == pair[0]].Pfam_ID.iat[0]
-    id_2_pfama = df_pfama.loc[df_pfama.Cluster == pair[1]].Pfam_ID.iat[0]
-    eval_1_pfama = df_pfama.loc[df_pfama.Cluster == pair[0]].EVal.iat[0]
-    eval_2_pfama = df_pfama.loc[df_pfama.Cluster == pair[1]].EVal.iat[0]
+    ann_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].PDB_ann.iat[0]
+    ann_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].PDB_ann.iat[0]
+    id_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].PDB_ID.iat[0]
+    id_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].PDB_ID.iat[0]
+    eval_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].EVal.iat[0]
+    eval_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].EVal.iat[0]
+    ann_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].Pfam_ann.iat[0]
+    ann_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].Pfam_ann.iat[0]
+    id_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].Pfam_ID.iat[0]
+    id_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].Pfam_ID.iat[0]
+    eval_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].EVal.iat[0]
+    eval_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].EVal.iat[0]
 
     clust1_size, clust2_size = (
-        df_clusters.loc[df_clusters.Cluster == pair[0]].iat[0, 2],
-        df_clusters.loc[df_clusters.Cluster == pair[1]].iat[0, 2]
+        df_clusters.loc[df_clusters.Cluster == pair_clusters[0]].iat[0, 2],
+        df_clusters.loc[df_clusters.Cluster == pair_clusters[1]].iat[0, 2]
     )
 
     # Список нуклеотидов и пар белков
     pair_nucleotides = [i.split('%')[-1] for i in regs]
 
-    pair_proteins = (
-        df_clusters.iloc[:, [0, 1, 5]]
-                   .loc[
-            df_clusters.Cluster.isin(pair)
-            &
-            df_clusters.Nucleotide.isin(pair_nucleotides)
-                        ]
-                   .groupby('Nucleotide')
-                   .agg(list)
-                   .iloc[:, [0]]
-    )
+    prot_to_defsys = defaultdict(dict)
+
+    for n, curr_defsys in enumerate(regs):
+        for curr_prot_id in data_defsys[curr_defsys]['Others_Prots']:
+            curr_prot = f"{data_defsys[curr_defsys]['Nucleotide']}_{curr_prot_id}"
+            prot_to_defsys[curr_prot]['DS_ID'] = curr_defsys
+    pair_proteins = (pd.DataFrame.from_dict(prot_to_defsys, orient='index')
+                       .rename_axis('Protein', axis=0)
+                       .reset_index())
+    pair_proteins = (pair_proteins.loc[
+                         pair_proteins.Protein.isin(
+                             df_clusters.loc[
+                                 df_clusters.Cluster.isin(pair_clusters)
+                             ].Protein
+                         )
+                     ].groupby('DS_ID').agg(list)
+                     )
 
     # Все белки должы отобраться парами
     try:
         assert (pair_proteins.Protein.apply(len) == 2).all()
     except AssertionError:
-        print(f'Fail for {pair}')
+        print(f'Warning! For {pair_clusters} cluster appears more than once in single region!')
 
     # Representatives sequences
-    fasta_reprs_acc = get_accession(pair_proteins.index[0], df_accessions)
+    fasta_reprs_acc = get_accession(pair_proteins.index[0].split('%')[-1], df_accessions)
     fasta_reprs_ids = pair_proteins.iat[0, 0]
 
     path_to_fasta_reprs = input_padloc_data_path / f'{fasta_reprs_acc}/{fasta_reprs_acc}_prodigal.faa'
@@ -280,10 +297,11 @@ for pair in coocc_data:
     fasta_reprs = extract_sequence(path_to_fasta_reprs, fasta_reprs_ids)
 
     # Intergenic distances
-    distances_all = pair_proteins.apply(
-        get_dist_between_proteins, args=(input_padloc_data_path, df_accessions), axis=1
-    )
-    dist_stat = f'{distances_all.mean():.0f}\u00B1{distances_all.sem():.0f}'
+    distances_all = pair_proteins.Protein.apply(get_dist_between_proteins)
+    if distances_all.nunique() > 1:
+        dist_stat = ','.join([str(i) for i in distances_all.unique()])
+    else:
+        dist_stat = '1'
 
     # Taxa, only genus
     pair_taxa = (df_accessions.loc[df_accessions.Nucleotide.isin(pair_nucleotides)]
@@ -295,7 +313,7 @@ for pair in coocc_data:
     # Full taxa
     # df_acc.loc[df_acc.Nucleotide.isin(curr_nucls)].Species.unique().tolist()
 
-    json_valid_key = '%'.join(pair)
+    json_valid_key = '%'.join(pair_clusters)
 
     coocc_prots_data[json_valid_key] = {}
     coocc_prots_data[json_valid_key]['J_index'] = j_idx
@@ -324,5 +342,5 @@ for pair in coocc_data:
    .rename_axis('Pairs')
    .to_csv(output_folder / 'cluster_pairs_stat.tsv', sep='\t'))
 
-with open(output_folder / 'cluster_pairs_stat.json', mode='w') as file:
-    json.dump(coocc_prots_data, file, indent=4)
+with open(output_folder / 'cluster_pairs_stat.json', mode='w') as f:
+    json.dump(coocc_prots_data, f, indent=4)
