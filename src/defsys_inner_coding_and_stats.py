@@ -334,8 +334,8 @@ for pair_clusters in coocc_data:
     coocc_prots_data[json_valid_key]['Pfam_ID_2'] = id_2_pfama
     coocc_prots_data[json_valid_key]['Pfam_Descr_2'] = ann_2_pfama
     coocc_prots_data[json_valid_key]['Pfam_EVal_2'] = eval_2_pfama
-    coocc_prots_data[json_valid_key]['Repr_1'] = fasta_reprs[0].split(':')[1]
-    coocc_prots_data[json_valid_key]['Repr_2'] = fasta_reprs[1].split(':')[1]
+    coocc_prots_data[json_valid_key]['Repr_1'] = fasta_reprs[0]
+    coocc_prots_data[json_valid_key]['Repr_2'] = fasta_reprs[1]
 
 # Save data
 (pd.DataFrame.from_dict(coocc_prots_data, orient='index')
