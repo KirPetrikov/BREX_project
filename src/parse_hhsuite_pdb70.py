@@ -70,7 +70,7 @@ for file_name in input_hh_suite_results.iterdir():
 
                     stat_line = file.readline()
 
-                    curr_descriotion = {
+                    curr_description = {
                         f'Hit_No_{count_n_hits}': {
                             'PDB_ID': curr_pdb_id,
                             'Description': curr_descr,
@@ -78,7 +78,7 @@ for file_name in input_hh_suite_results.iterdir():
                             'Prob': float(stat_line.split('  ')[0][7:])
                         }
                     }
-                    descriptions_catalog[cluster_id].update(curr_descriotion)
+                    descriptions_catalog[cluster_id].update(curr_description)
 
                 else:
                     continue

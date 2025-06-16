@@ -1,4 +1,4 @@
-"""v0.1c
+"""v0.1e
 Scripts collection for import
 """
 import numpy as np
@@ -14,10 +14,11 @@ pd.options.mode.copy_on_write = True
 def co_occurence_matrix(data_items: list | tuple, to_dataframe=True) -> np.ndarray | pd.DataFrame:
     """
     Create co-occurence matrix for collection of items
+    Return numpy array or pandas dataframe
 
-    :param data_items: list of lists with items
-    :param to_dataframe: set True (defult) to return pd.DataFrame, else - np-array
-    :return: Co_occurence array or dataframe
+    :param data_items: List of lists with items
+    :param to_dataframe: Set True (default) to return pd.DataFrame, else - np.array
+    :return: Co-occurence array or dataframe
     """
     all_items = sorted(set(x for xs in data_items for x in xs))
 
@@ -56,13 +57,14 @@ def co_occurence_matrix(data_items: list | tuple, to_dataframe=True) -> np.ndarr
 
 
 def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
-                    n_top=10) -> dict[tuple: int] | dict[str: int]:
+                    n_top: int = 10) -> dict[tuple: int] | dict[str: int]:
     """
     Create dictionary with top n co-occured pairs of items
 
     :param co_occurrence_mtx: Co-occurence matrix
     :param n_top: number of top entries to get
-    :return:
+                  If set to -1 - get all pairs with non-zero co-occurrence
+    :return: Pairs of ID's with them co-occurrence value
     """
 
     dataframe = False
@@ -74,6 +76,10 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
 
     triu_indices = np.triu_indices_from(co_occurrence_mtx, k=1)
     upper_values = co_occurrence_mtx[triu_indices]
+
+    if n_top == -1:
+        n_top = np.count_nonzero(upper_values)
+
     top_n_idxs = np.argpartition(-upper_values, n_top)[:n_top]
     top_n_sorted = top_n_idxs[np.argsort(-upper_values[top_n_idxs])]
 
@@ -86,12 +92,10 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
     if dataframe:
         for i, j in zip(top_n_pairs, top_n_values):
             curr_pair = tuple(items[list(i)])
-            top_n_fin[curr_pair] = j
-            # curr_pair = items[list(i)].to_list()
-            # top_n_fin[f'{curr_pair[0]}, {curr_pair[1]}'] = j
+            top_n_fin[curr_pair] = int(j)
     else:
         for i, j in zip(top_n_pairs, top_n_values):
-            top_n_fin[i] = j
+            top_n_fin[i] = int(j)
 
     return top_n_fin
 
@@ -126,7 +130,6 @@ def coords_selector(frame: pd.DataFrame):
     else:
         return frame.unique()[0]
 
-
 def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create summary for defense systems
@@ -159,17 +162,45 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     return df_result
 
 
+def select_target_dupl_defsys(df: pd.DataFrame, target_defsys: str, dupl_ready: bool = False) -> pd.DataFrame:
+    """
+    Select those DS which intersect with target DS by duplicatedt proteins
+
+    - dupl_ready: Set to True if input df contains not only duplicates
+    """
+    if not dupl_ready:
+        df = find_dupl_defsys(df)
+
+    # Mask for proteins from target DS
+    dupl_prots_from_target_defsys = (df.groupby('Protein')['DS_ID']
+                                       .agg(
+        lambda x: any([i.startswith(target_defsys) for i in x.unique()])
+                                            )
+                                     )
+    # Select proteins
+    duplicated_prots_brex = dupl_prots_from_target_defsys[dupl_prots_from_target_defsys].index
+
+    # Select IDs of all DS which contain duplicated proteins
+    dupl_defsys_ids_brex = df[df['Protein'].isin(duplicated_prots_brex)].DS_ID.unique()
+
+    # Select full DS
+    df_dupl_brex = df[df.DS_ID.isin(dupl_defsys_ids_brex)]
+
+    return df_dupl_brex
+
+
 def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create summary for duplicated proteins only
 
     Params:
-    - dataframe: Parsed Padloc csv, short form (defsys.parse_padloc_csv)
+    - df: Combined table of defense systems' proteins
+          (as parsed Padloc-csv table with added assembly accessions)
 
     Return:
     - dataframe: Every row - unique duplicated protein.
                  Columns:
-                 - 'Nucleotide', 'Protein': unique values;
+                 - 'Protein', 'Nucleotide', 'Accession': corresponding values;
                  - 'Padloc_ann', 'System': collected as lists in corresponding columns;
                  - 'DS_ID': all DS_IDs joined by ","
     """
@@ -178,9 +209,9 @@ def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
     dupl_prots = prots_counts[prots_counts > 1].index
     df = (df[
              df.Protein.isin(dupl_prots)
-             ].groupby(['Protein', 'Nucleotide'])[['DS_ID', 'Padloc_ann', 'System']]
-              .agg(lambda x: x.unique().tolist())
-              .reset_index()[['Nucleotide', 'Protein', 'Padloc_ann', 'System', 'DS_ID']]
+             ].groupby(['Protein', 'Nucleotide', 'Accession'])[['DS_ID', 'Padloc_ann', 'System']]
+              .agg(lambda x: x.tolist())
+              .reset_index()
           )
     df.loc[:, 'DS_ID'] = df.DS_ID.apply(lambda x: ','.join(x))
     return df
