@@ -1,4 +1,4 @@
-"""v0.1c
+"""v0.1d
 Scripts collection for import
 """
 import numpy as np
@@ -164,12 +164,13 @@ def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
     Create summary for duplicated proteins only
 
     Params:
-    - dataframe: Parsed Padloc csv, short form (defsys.parse_padloc_csv)
+    - df: Combined table of defense systems' proteins
+          (as parsed Padloc-csv table with added assembly accessions)
 
     Return:
     - dataframe: Every row - unique duplicated protein.
                  Columns:
-                 - 'Nucleotide', 'Protein': unique values;
+                 - 'Protein', 'Nucleotide', 'Accession': corresponding values;
                  - 'Padloc_ann', 'System': collected as lists in corresponding columns;
                  - 'DS_ID': all DS_IDs joined by ","
     """
@@ -178,9 +179,9 @@ def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
     dupl_prots = prots_counts[prots_counts > 1].index
     df = (df[
              df.Protein.isin(dupl_prots)
-             ].groupby(['Protein', 'Nucleotide'])[['DS_ID', 'Padloc_ann', 'System']]
-              .agg(lambda x: x.unique().tolist())
-              .reset_index()[['Nucleotide', 'Protein', 'Padloc_ann', 'System', 'DS_ID']]
+             ].groupby(['Protein', 'Nucleotide', 'Accession'])[['DS_ID', 'Padloc_ann', 'System']]
+              .agg(lambda x: x.tolist())
+              .reset_index()
           )
     df.loc[:, 'DS_ID'] = df.DS_ID.apply(lambda x: ','.join(x))
     return df
