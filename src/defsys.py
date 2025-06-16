@@ -14,10 +14,11 @@ pd.options.mode.copy_on_write = True
 def co_occurence_matrix(data_items: list | tuple, to_dataframe=True) -> np.ndarray | pd.DataFrame:
     """
     Create co-occurence matrix for collection of items
+    Return numpy array or pandas dataframe
 
-    :param data_items: list of lists with items
-    :param to_dataframe: set True (defult) to return pd.DataFrame, else - np-array
-    :return: Co_occurence array or dataframe
+    :param data_items: List of lists with items
+    :param to_dataframe: Set True (default) to return pd.DataFrame, else - np.array
+    :return: Co-occurence array or dataframe
     """
     all_items = sorted(set(x for xs in data_items for x in xs))
 

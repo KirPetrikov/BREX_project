@@ -1,4 +1,7 @@
 """v0.5
+Parse Padloc results (csv-files) to create json-defense systems summary,
+table of Padloc proteins annotations, table of DS where there is protein duplication,
+and table with DS where there art non-unidirectional genes.
 """
 import argparse
 import json
@@ -13,12 +16,13 @@ pd.options.mode.copy_on_write = True
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description='Parse Padloc results (csv-files) to create defense systems summary,'
-        'proteins annotations table, finds DS where there is proteins duplication'
+        description='Parse Padloc results (csv-files) to create json-defense systems summary, '
+                    'table of Padloc proteins annotations, table of DS where there is protein duplication, '
+                    'and table with DS where there art non-unidirectional genes.'
                                      )
     parser.add_argument('input_folder_path', type=str,
                         help='Path to the data folder')
-    parser.add_argument('output_path_results', type=str,
+    parser.add_argument('output_results_filder_path', type=str,
                         help='Path to the results folder. Will be created if it does not exist')
     return parser.parse_args()
 
@@ -73,14 +77,13 @@ def process_padloc_data(path_to_csv) -> tuple[pd.DataFrame, pd.DataFrame, pd.Dat
 
 args = parse_arguments()
 input_folder_path = Path(args.input_folder_path)
-output_path_results = Path(args.output_path_results)
+output_results_filder_path = Path(args.output_results_filder_path)
 
-assert input_folder_path.exists(), 'Input folder does not exist!'
-output_path_results.mkdir(parents=True, exist_ok=True)
+output_results_filder_path.mkdir(parents=True, exist_ok=True)
 
 summary_defsys_all = {}
 duplicate_defsys_all = []
-nonunidir_defsys_all = defaultdict(str)  # List of DS with antiparallel genes
+nonunidir_defsys_all = defaultdict(str)  # List of DS with non-uniderectional/antiparallel genes
 protein_annotations_all = []
 
 for folder in input_folder_path.iterdir():
@@ -89,7 +92,7 @@ for folder in input_folder_path.iterdir():
                                                                     folder / (folder.name + '_padloc.csv')
                                                                                     )
 
-    curr_accession_result_path = output_path_results / f'By_Accessions/{folder.name}'
+    curr_accession_result_path = output_results_filder_path / f'By_Accessions/{folder.name}'
     curr_accession_result_path.mkdir(parents=True, exist_ok=True)
 
     protein_annotations_all.append(prot_curr)
@@ -103,19 +106,18 @@ for folder in input_folder_path.iterdir():
     summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
 # --- Write results ---
-with open(output_path_results / 'non_unidirectional_defsys.txt', mode='w') as f:
+with open(output_results_filder_path / 'non_unidirectional_defsys.tsv', mode='w') as f:
     for k, v in nonunidir_defsys_all.items():
         f.write(f'{k}\t{v}\n')
 
 if duplicate_defsys_all:
     (pd.concat(duplicate_defsys_all)
-        .reset_index(drop=True)
-        .to_csv(output_path_results / 'duplicated_defsys.tsv', sep='\t', index=False))
+       .reset_index(drop=True)
+       .to_csv(output_results_filder_path / 'duplicated_defsys.tsv', sep='\t', index=False))
 
 (pd.concat(protein_annotations_all)
    .reset_index(drop=True)
-   .to_csv(output_path_results / 'protein_annotations_all.tsv', sep='\t', index=False))
+   .to_csv(output_results_filder_path / 'protein_annotations_all.tsv', sep='\t', index=False))
 
-with open(output_path_results / 'defsys_summary_all.json', mode='w') as f:
+with open(output_results_filder_path / 'defsys_summary_all.json', mode='w') as f:
     json.dump(summary_defsys_all, f, indent=4)
-
