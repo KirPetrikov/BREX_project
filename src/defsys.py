@@ -56,13 +56,14 @@ def co_occurence_matrix(data_items: list | tuple, to_dataframe=True) -> np.ndarr
 
 
 def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
-                    n_top=10) -> dict[tuple: int] | dict[str: int]:
+                    n_top: int = 10) -> dict[tuple: int] | dict[str: int]:
     """
     Create dictionary with top n co-occured pairs of items
 
     :param co_occurrence_mtx: Co-occurence matrix
     :param n_top: number of top entries to get
-    :return:
+                  If set to -1 - get all pairs with non-zero co-occurrence
+    :return: Pairs of ID's with them co-occurrence value
     """
 
     dataframe = False
@@ -74,6 +75,10 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
 
     triu_indices = np.triu_indices_from(co_occurrence_mtx, k=1)
     upper_values = co_occurrence_mtx[triu_indices]
+
+    if n_top == -1:
+        n_top = np.count_nonzero(upper_values)
+
     top_n_idxs = np.argpartition(-upper_values, n_top)[:n_top]
     top_n_sorted = top_n_idxs[np.argsort(-upper_values[top_n_idxs])]
 
@@ -86,12 +91,10 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
     if dataframe:
         for i, j in zip(top_n_pairs, top_n_values):
             curr_pair = tuple(items[list(i)])
-            top_n_fin[curr_pair] = j
-            # curr_pair = items[list(i)].to_list()
-            # top_n_fin[f'{curr_pair[0]}, {curr_pair[1]}'] = j
+            top_n_fin[curr_pair] = int(j)
     else:
         for i, j in zip(top_n_pairs, top_n_values):
-            top_n_fin[i] = j
+            top_n_fin[i] = int(j)
 
     return top_n_fin
 
