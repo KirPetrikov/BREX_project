@@ -1,4 +1,4 @@
-"""v0.1d
+"""v0.1e
 Scripts collection for import
 """
 import numpy as np
@@ -130,7 +130,6 @@ def coords_selector(frame: pd.DataFrame):
     else:
         return frame.unique()[0]
 
-
 def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create summary for defense systems
@@ -161,6 +160,33 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     df_result['Have_inner'] = df_result['DS_Prots'].apply(lambda x: set(x) != set(range(min(x), max(x) + 1)))
 
     return df_result
+
+
+def select_target_dupl_defsys(df: pd.DataFrame, target_defsys: str, dupl_ready: bool = False) -> pd.DataFrame:
+    """
+    Select those DS which intersect with target DS by duplicatedt proteins
+
+    - dupl_ready: Set to True if input df contains not only duplicates
+    """
+    if not dupl_ready:
+        df = find_dupl_defsys(df)
+
+    # Mask for proteins from target DS
+    dupl_prots_from_target_defsys = (df.groupby('Protein')['DS_ID']
+                                       .agg(
+        lambda x: any([i.startswith(target_defsys) for i in x.unique()])
+                                            )
+                                     )
+    # Select proteins
+    duplicated_prots_brex = dupl_prots_from_target_defsys[dupl_prots_from_target_defsys].index
+
+    # Select IDs of all DS which contain duplicated proteins
+    dupl_defsys_ids_brex = df[df['Protein'].isin(duplicated_prots_brex)].DS_ID.unique()
+
+    # Select full DS
+    df_dupl_brex = df[df.DS_ID.isin(dupl_defsys_ids_brex)]
+
+    return df_dupl_brex
 
 
 def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
