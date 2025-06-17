@@ -1,9 +1,15 @@
-"""v0.1b
-Coding of the composition of a region from inner genes into corresponding clusters.
-Statistics on clusters and proteins.
+"""v0.2
+Summary for pairs of most co-represented clusters of inner other proteins.
+
+Coding of the composition of a region: protein to corresponding cluster.
+Updates DS summary by removing from 'Others_' fields proteins annotated by DefenseFinder.
+Find last common ancestor taxon.
+
+Input clusters table must be with all annotations added (DefenseFinder, PDB70, PfamA)
 """
 
 import argparse
+import subprocess
 import pandas as pd
 import json
 
@@ -18,13 +24,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Clusters coding of other genes'
                                                  ' and description summary')
     parser.add_argument('-c', '--clusters_table', type=Path, required=True,
-                        help='Clusters table, .tsv')
+                        help='Clusters table with all annotations added, .tsv')
     parser.add_argument('-s', '--defsys_summary', type=Path, required=True,
                         help='Defense systems summary, .json')
     parser.add_argument('-a', '--accessions', type=Path, required=True,
                         help='Table Nucleotide - Assembly accession - Taxon, .tsv')
-    parser.add_argument('-n', '--annotations', type=Path, required=True,
-                        help='Actual Padloc annotations table, .tsv')
     parser.add_argument('-b', '--pdb70_parent', type=Path, required=True,
                         help='PDB70 annotations directory')
     parser.add_argument('-f', '--pfama_parent', type=Path, required=True,
@@ -43,17 +47,14 @@ def parse_args():
 
 def clusters_coding(data, clusters, threshold=2):
     """
-    Add to all DS_ID in defense systems summary
-    field 'Other_Cluster' with list of regs_composition.
-    Only for other_proteins.
-
-    Create dataframe:
-    Cluster - List of DS_IDs with it - Number of regions
+    Update defense systems summary by
+    adding field 'Other_Cluster' with list of regs_composition.
+    Only for Other proteins.
 
     :param data: Defense systems summary
     :param clusters: Clusters dataframe
     :param threshold: Minimal size of clusters to be considered (default: 2)
-    :return: DataFrame
+    :return: DataFrame: Cluster - List of DS_IDs with it - Number of regions
     """
 
     codes = dict(
@@ -167,12 +168,18 @@ def extract_sequence(fasta_file_path,
     return selected_seqs
 
 
+# Find LCA
+PIPELINE_LCA = (
+    "/home/niagara/Storage/MetaRus/k_petrikov/bin/taxonkit name2taxid | cut -f 2 | paste -sd ',' | "
+    "/home/niagara/Storage/MetaRus/k_petrikov/bin/taxonkit lca -s ',' | "
+    "/home/niagara/Storage/MetaRus/k_petrikov/bin/taxonkit lineage -Ln -i 2 | cut -f 3"
+)
+
 args = parse_args()
 
 input_clusters_table_path = args.clusters_table
 input_defsys_summary_path = args.defsys_summary
 input_accessions_path = args.accessions
-input_annot_path = args.annotations
 input_pdb70_parent_path = args.pdb70_parent
 input_pfama_parent_path = args.pfama_parent
 input_padloc_data_path = args.padloc_data
@@ -192,55 +199,42 @@ with open(input_defsys_summary_path) as f:
 df_clusters = pd.read_csv(input_clusters_table_path, sep='\t')
 df_accessions = pd.read_csv(input_accessions_path, sep='\t')
 
-df_annotations = pd.read_csv(input_annot_path,
-                             sep='\t',
-                             dtype={'Protein': str, 'Padloc_ann': str, 'System': str, 'Nucleotide': str,
-                                    'Start': int, 'End': int, 'Strand': str, 'Localisation': str})
-
 df_pdb70 = pd.read_csv(pdb70_path, sep='\t',
                        dtype={'Cluster': str, 'PDB_ID': str, 'PDB_ann': str, 'EVal': float, 'Prob': float})
 
 df_pfama = pd.read_csv(pfama_path, sep='\t',
                        dtype={'Cluster': str, 'Pfam_ID': str, 'Pfam_ann': str, 'EVal': float, 'Prob': float})
 
-# Add annotations, Padloc, PDB70, PfamA
-df_clusters = df_clusters.merge(df_annotations,
-                                how='left',
-                                on=['Protein']
-                                ).fillna('miss')
+# Update 'Others_' fields
+dfnfnr_prots = df_clusters.loc[(df_clusters.DF_ann != 'miss') & (df_clusters.Padloc_ann == 'miss')].Protein.tolist()
 
-m = df_pdb70[['Cluster', 'PDB_ann']].set_index('Cluster').to_dict()['PDB_ann']
-df_clusters['PDB_ann'] = df_clusters['Cluster'].map(m)
+for curr_reg in data_defsys.values():
+    new_other_prots = []
 
-m = df_pfama[['Cluster', 'Pfam_ann']].set_index('Cluster').to_dict()['Pfam_ann']
-df_clusters['Pfam_ann'] = df_clusters['Cluster'].map(m)
+    for prot_id in curr_reg['Others_Prots']:
+        curr_prot = f'{curr_reg["Nucleotide"]}_{prot_id}'
+        if curr_prot in dfnfnr_prots:
+            pass
+        else:
+            new_other_prots.append(prot_id)
 
-# Add nucleotides
-df_clusters.loc[df_clusters.Nucleotide == 'miss', 'Nucleotide'] = df_clusters.loc[
-    df_clusters.Nucleotide == 'miss'].Protein.apply(lambda x: '_'.join(x.split('_')[:-1]))
-
-# Drop unnecessary columns
-# df_clusters = df_clusters.drop(['Start', 'End', 'Strand', 'Localisation'], axis=1)
+    curr_reg['Others_Prots'] = new_other_prots
+    curr_reg['Others_Count'] = len(new_other_prots)
 
 # Clusters coding
 df_prots_regs = clusters_coding(data_defsys, df_clusters, threshold=cluster_size_threshold)
-
 df_defsys = pd.DataFrame.from_dict(data_defsys, orient='index').drop(
     ['Start', 'End', 'Strand', 'Inner_DS_full', 'Accession'], axis=1)
 
 # Co-occurrence matrix
 clusters_by_regions = df_defsys.loc[df_defsys.Others_Count > 0].Other_Cluster.to_list()
-
 df_co_occurrence = co_occurence_matrix(clusters_by_regions)
-
 coocc_data = top_co_occurred(df_co_occurrence, top_coocc_number)
-
-# Skip Paris-proteins
-# del coocc_data[('CLUS_NZ_CP113504.1_1637', 'CLUS_NZ_CP149360.1_435')]
 
 coocc_prots_data = {}
 
 for pair_clusters in coocc_data:
+    print(f'---Process {pair_clusters}---')
     j_idx, regs = jaccard_index(pair_clusters[0], pair_clusters[1], df_prots_regs)
 
     ann_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].PDB_ann.iat[0]
@@ -261,15 +255,16 @@ for pair_clusters in coocc_data:
         df_clusters.loc[df_clusters.Cluster == pair_clusters[1]].iat[0, 2]
     )
 
-    # Список нуклеотидов и пар белков
+    # Nucleotides and protein pairs
     pair_nucleotides = [i.split('%')[-1] for i in regs]
 
     prot_to_defsys = defaultdict(dict)
 
-    for n, curr_defsys in enumerate(regs):
+    for curr_defsys in regs:
         for curr_prot_id in data_defsys[curr_defsys]['Others_Prots']:
             curr_prot = f"{data_defsys[curr_defsys]['Nucleotide']}_{curr_prot_id}"
             prot_to_defsys[curr_prot]['DS_ID'] = curr_defsys
+
     pair_proteins = (pd.DataFrame.from_dict(prot_to_defsys, orient='index')
                        .rename_axis('Protein', axis=0)
                        .reset_index())
@@ -282,10 +277,8 @@ for pair_clusters in coocc_data:
                      ].groupby('DS_ID').agg(list)
                      )
 
-    # Все белки должы отобраться парами
-    try:
-        assert (pair_proteins.Protein.apply(len) == 2).all()
-    except AssertionError:
+    # Check protein pairs lenght
+    if not (pair_proteins.Protein.apply(len) == 2).all():
         print(f'Warning! For {pair_clusters} cluster appears more than once in single region!')
 
     # Representatives sequences
@@ -303,16 +296,34 @@ for pair_clusters in coocc_data:
     else:
         dist_stat = str(distances_all.unique()[0])
 
-    # Taxa, only genus
+    # Taxa, all genera
     pair_taxa = (df_accessions.loc[df_accessions.Nucleotide.isin(pair_nucleotides)]
                  .Species
                  .apply(lambda x: x.split(' ')[0])
                  .unique()
                  .tolist())
 
-    # Full taxa
-    # df_acc.loc[df_acc.Nucleotide.isin(curr_nucls)].Species.unique().tolist()
+    # Find LCA
+    tax_names = '\n'.join(pair_taxa)
 
+    proc = subprocess.Popen(
+        PIPELINE_LCA,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    stdout, stderr = proc.communicate(input=tax_names)
+
+    if proc.returncode != 0:
+        print(f'Error for cluster {pair_clusters}: {stderr}')
+        tax_lca = 'ERROR'
+    else:
+        tax_lca = stdout.strip()
+
+    # Write dict for JSON
     json_valid_key = '%'.join(pair_clusters)
 
     coocc_prots_data[json_valid_key] = {}
@@ -320,6 +331,7 @@ for pair_clusters in coocc_data:
     coocc_prots_data[json_valid_key]['Regs_number'] = len(regs)
     coocc_prots_data[json_valid_key]['Distance'] = dist_stat
     coocc_prots_data[json_valid_key]['Tax'] = pair_taxa
+    coocc_prots_data[json_valid_key]['Tax_LCA'] = tax_lca
     coocc_prots_data[json_valid_key]['Size_1'] = int(clust1_size)
     coocc_prots_data[json_valid_key]['PDB_ID_1'] = id_1_pdb
     coocc_prots_data[json_valid_key]['PDB_Descr_1'] = ann_1_pdb
@@ -339,8 +351,8 @@ for pair_clusters in coocc_data:
 
 # Save data
 (pd.DataFrame.from_dict(coocc_prots_data, orient='index')
-   .rename_axis('Pairs')
-   .to_csv(output_folder / 'cluster_pairs_stat.tsv', sep='\t'))
+ .rename_axis('Pairs')
+ .to_csv(output_folder / 'cluster_pairs_stat.tsv', sep='\t'))
 
 with open(output_folder / 'cluster_pairs_stat.json', mode='w') as f:
     json.dump(coocc_prots_data, f, indent=4)
