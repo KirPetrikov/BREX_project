@@ -1,8 +1,8 @@
-"""v0.2
+"""v0.2b
 Summary for pairs of most co-represented clusters of inner other proteins.
 
 Coding of the composition of a region: protein to corresponding cluster.
-Updates DS summary by removing from 'Others_' fields proteins annotated by DefenseFinder.
+Updates DS summary by removing from 'Others_' fields proteins from annotated clusters
 Find last common ancestor taxon.
 
 Input clusters table must be with all annotations added (DefenseFinder, PDB70, PfamA)
@@ -48,13 +48,13 @@ def parse_args():
 def clusters_coding(data, clusters, threshold=2):
     """
     Update defense systems summary by
-    adding field 'Other_Cluster' with list of regs_composition.
+    adding field 'Other_Cluster' with list of corresponding clusters.
     Only for Other proteins.
 
     :param data: Defense systems summary
     :param clusters: Clusters dataframe
     :param threshold: Minimal size of clusters to be considered (default: 2)
-    :return: DataFrame: Cluster - List of DS_IDs with it - Number of regions
+    :return: DataFrame: Cluster | List of DS_IDs with it | Number of regions
     """
 
     codes = dict(
@@ -92,7 +92,7 @@ def clusters_coding(data, clusters, threshold=2):
 
 def jaccard_index(id_1, id_2, df) -> tuple[float, set]:
     """
-    Calculate Jaccard index.
+    Calculate Jaccard index, find set of common regions.
 
     :param id_1: Cluster_1 ID
     :param id_2: Cluster_2 ID
@@ -116,7 +116,7 @@ def get_accession(nucl, df_acc):
 def get_dist_between_proteins(frame):
     """
     Returns number of genes between two other genes
-    based on IDs difference
+    based on sequential IDs difference
 
     For use in .apply() on pd.Series:
         |    index   |       'Protein'      |
@@ -128,11 +128,11 @@ def get_dist_between_proteins(frame):
     return abs(prot_ids[0] - prot_ids[1]) - 1
 
 
-def read_fasta(fasta_file_path):
+def read_fasta(fasta_file_path) -> tuple[str, str]:
     """
     Read fasta-file
     Returns (>fasta_header, sequence) as in source
-    (does not create one-line-fasta)
+    (keep one/multi-lines format)
     """
     name, seq = None, []
     for line in fasta_file_path:
@@ -187,6 +187,7 @@ output_folder = args.output_folder
 cluster_size_threshold = args.cluster_size_threshold
 top_coocc_number = args.top_coocc_number
 
+
 output_folder.mkdir(parents=True, exist_ok=True)
 
 pdb70_path = input_pdb70_parent_path / 'region_pdb_top_annot.tsv'
@@ -205,17 +206,25 @@ df_pdb70 = pd.read_csv(pdb70_path, sep='\t',
 df_pfama = pd.read_csv(pfama_path, sep='\t',
                        dtype={'Cluster': str, 'Pfam_ID': str, 'Pfam_ann': str, 'EVal': float, 'Prob': float})
 
-# Update 'Others_' fields
-dfnfnr_prots = df_clusters.loc[(df_clusters.DF_ann != 'miss') & (df_clusters.Padloc_ann == 'miss')].Protein.tolist()
+# Select clusters w/o any defsys annotation
+df_to_sel_clust_no_ann = df_clusters.groupby('Cluster')[['DF_ann', 'Padloc_ann']].agg(set)
 
+clust_no_ann = df_to_sel_clust_no_ann.loc[
+    (df_to_sel_clust_no_ann.DF_ann == {'miss'})
+    &
+    (df_to_sel_clust_no_ann.Padloc_ann == {'miss'})
+].index
+
+# Proteins from clusters w/o defsys annotation
+prots_without_defsys_ann = df_clusters.loc[df_clusters.Cluster.isin(clust_no_ann)].Protein.tolist()
+
+# Update 'Others_' fields
 for curr_reg in data_defsys.values():
     new_other_prots = []
 
     for prot_id in curr_reg['Others_Prots']:
         curr_prot = f'{curr_reg["Nucleotide"]}_{prot_id}'
-        if curr_prot in dfnfnr_prots:
-            pass
-        else:
+        if curr_prot in prots_without_defsys_ann:
             new_other_prots.append(prot_id)
 
     curr_reg['Others_Prots'] = new_other_prots
@@ -356,3 +365,4 @@ for pair_clusters in coocc_data:
 
 with open(output_folder / 'cluster_pairs_stat.json', mode='w') as f:
     json.dump(coocc_prots_data, f, indent=4)
+
