@@ -1,5 +1,7 @@
-"""v0.2b
-Summary for pairs of most co-represented clusters of inner other proteins.
+"""v0.3
+Summary for inner other proteins:
+- for pairs of most co-represented clusters
+- for most abundant clusters
 
 Coding of the composition of a region: protein to corresponding cluster.
 Updates DS summary by removing from 'Others_' fields proteins from annotated clusters
@@ -39,6 +41,8 @@ def parse_args():
                         help='Minimal size of clusters to be considered (default: 2)')
     parser.add_argument('-m', '--top_coocc_number', type=int, default=10,
                         help='Number of top cooccured pairs to select for descriptoin (default: 10)')
+    parser.add_argument('-n', '--top_clusters_number', type=int, default=10,
+                        help='Number of most abundant clusters to select for descriptoin (default: 10)')
     parser.add_argument('-o', '--output_folder', type=Path, required=True,
                         help='Directory to save result. Will be created')
 
@@ -66,9 +70,9 @@ def clusters_coding(data, clusters, threshold=2):
 
     for ds_id, val in data.items():
         data[ds_id]['Other_Cluster'] = ''
-        curr_other_prots = [f'{val["Nucleotide"]}_{i}' for i in val['Others_Prots']]
+        other_prots = [f'{val["Nucleotide"]}_{i}' for i in val['Others_Prots']]
         curr_clusters = []
-        for prot in curr_other_prots:
+        for prot in other_prots:
             if prot in codes:
                 curr_clusters.append(codes[prot])
             else:
@@ -168,7 +172,6 @@ def extract_sequence(fasta_file_path,
     return selected_seqs
 
 
-# Find LCA
 PIPELINE_LCA = (
     "/home/niagara/Storage/MetaRus/k_petrikov/bin/taxonkit name2taxid | cut -f 2 | paste -sd ',' | "
     "/home/niagara/Storage/MetaRus/k_petrikov/bin/taxonkit lca -s ',' | "
@@ -186,7 +189,7 @@ input_padloc_data_path = args.padloc_data
 output_folder = args.output_folder
 cluster_size_threshold = args.cluster_size_threshold
 top_coocc_number = args.top_coocc_number
-
+top_clusters_number = args.top_clusters_number
 
 output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -215,26 +218,27 @@ clust_no_ann = df_to_sel_clust_no_ann.loc[
     (df_to_sel_clust_no_ann.Padloc_ann == {'miss'})
 ].index
 
-# Proteins from clusters w/o defsys annotation
-prots_without_defsys_ann = df_clusters.loc[df_clusters.Cluster.isin(clust_no_ann)].Protein.tolist()
+# Proteins w/o defsys annotation
+prots_with_dfnfnr_ann = df_clusters.loc[(df_clusters.DF_ann != 'miss')].Protein.tolist()
 
 # Update 'Others_' fields
-for curr_reg in data_defsys.values():
-    new_other_prots = []
+for brex_id, curr_reg in data_defsys.items():
+    curr_other_prots = []
 
     for prot_id in curr_reg['Others_Prots']:
         curr_prot = f'{curr_reg["Nucleotide"]}_{prot_id}'
-        if curr_prot in prots_without_defsys_ann:
-            new_other_prots.append(prot_id)
+        if curr_prot not in prots_with_dfnfnr_ann:
+            curr_other_prots.append(prot_id)
 
-    curr_reg['Others_Prots'] = new_other_prots
-    curr_reg['Others_Count'] = len(new_other_prots)
+    data_defsys[brex_id]['Others_Prots'] = curr_other_prots
+    data_defsys[brex_id]['Others_Count'] = len(curr_other_prots)
 
 # Clusters coding
 df_prots_regs = clusters_coding(data_defsys, df_clusters, threshold=cluster_size_threshold)
 df_defsys = pd.DataFrame.from_dict(data_defsys, orient='index').drop(
     ['Start', 'End', 'Strand', 'Inner_DS_full', 'Accession'], axis=1)
 
+# Pairs of most co-represented clusters
 # Co-occurrence matrix
 clusters_by_regions = df_defsys.loc[df_defsys.Others_Count > 0].Other_Cluster.to_list()
 df_co_occurrence = co_occurence_matrix(clusters_by_regions)
@@ -243,26 +247,9 @@ coocc_data = top_co_occurred(df_co_occurrence, top_coocc_number)
 coocc_prots_data = {}
 
 for pair_clusters in coocc_data:
+# for pair_clusters in [('CLUS_CP028720.1_1266', 'CLUS_NZ_OZ061338.1_1399')]:  # Test
     print(f'---Process {pair_clusters}---')
     j_idx, regs = jaccard_index(pair_clusters[0], pair_clusters[1], df_prots_regs)
-
-    ann_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].PDB_ann.iat[0]
-    ann_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].PDB_ann.iat[0]
-    id_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].PDB_ID.iat[0]
-    id_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].PDB_ID.iat[0]
-    eval_1_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[0]].EVal.iat[0]
-    eval_2_pdb = df_pdb70.loc[df_pdb70.Cluster == pair_clusters[1]].EVal.iat[0]
-    ann_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].Pfam_ann.iat[0]
-    ann_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].Pfam_ann.iat[0]
-    id_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].Pfam_ID.iat[0]
-    id_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].Pfam_ID.iat[0]
-    eval_1_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[0]].EVal.iat[0]
-    eval_2_pfama = df_pfama.loc[df_pfama.Cluster == pair_clusters[1]].EVal.iat[0]
-
-    clust1_size, clust2_size = (
-        df_clusters.loc[df_clusters.Cluster == pair_clusters[0]].iat[0, 2],
-        df_clusters.loc[df_clusters.Cluster == pair_clusters[1]].iat[0, 2]
-    )
 
     # Nucleotides and protein pairs
     pair_nucleotides = [i.split('%')[-1] for i in regs]
@@ -341,28 +328,89 @@ for pair_clusters in coocc_data:
     coocc_prots_data[json_valid_key]['Distance'] = dist_stat
     coocc_prots_data[json_valid_key]['Tax'] = pair_taxa
     coocc_prots_data[json_valid_key]['Tax_LCA'] = tax_lca
-    coocc_prots_data[json_valid_key]['Size_1'] = int(clust1_size)
-    coocc_prots_data[json_valid_key]['PDB_ID_1'] = id_1_pdb
-    coocc_prots_data[json_valid_key]['PDB_Descr_1'] = ann_1_pdb
-    coocc_prots_data[json_valid_key]['PDB_EVal_1'] = eval_1_pdb
-    coocc_prots_data[json_valid_key]['Size_2'] = int(clust2_size)
-    coocc_prots_data[json_valid_key]['PDB_ID_2'] = id_2_pdb
-    coocc_prots_data[json_valid_key]['PDB_Descr_2'] = ann_2_pdb
-    coocc_prots_data[json_valid_key]['PDB_EVal_2'] = eval_2_pdb
-    coocc_prots_data[json_valid_key]['Pfam_ID_1'] = id_1_pfama
-    coocc_prots_data[json_valid_key]['Pfam_Descr_1'] = ann_1_pfama
-    coocc_prots_data[json_valid_key]['Pfam_EVal_1'] = eval_1_pfama
-    coocc_prots_data[json_valid_key]['Pfam_ID_2'] = id_2_pfama
-    coocc_prots_data[json_valid_key]['Pfam_Descr_2'] = ann_2_pfama
-    coocc_prots_data[json_valid_key]['Pfam_EVal_2'] = eval_2_pfama
+    coocc_prots_data[json_valid_key]['Size_1'] = int(
+        df_clusters.loc[df_clusters.Cluster == pair_clusters[0]].iat[0, 2]
+    )
+    coocc_prots_data[json_valid_key]['PDB_ID_1'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[0]
+    ].PDB_ID.iat[0]
+    coocc_prots_data[json_valid_key]['PDB_Descr_1'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[0]
+    ].PDB_ann.iat[0]
+    coocc_prots_data[json_valid_key]['PDB_EVal_1'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[0]
+    ].EVal.iat[0]
+    coocc_prots_data[json_valid_key]['Size_2'] = int(
+        df_clusters.loc[df_clusters.Cluster == pair_clusters[1]].iat[0, 2]
+    )
+    coocc_prots_data[json_valid_key]['PDB_ID_2'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[1]
+    ].PDB_ID.iat[0]
+    coocc_prots_data[json_valid_key]['PDB_Descr_2'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[1]
+    ].PDB_ann.iat[0]
+    coocc_prots_data[json_valid_key]['PDB_EVal_2'] = df_pdb70.loc[
+        df_pdb70.Cluster == pair_clusters[1]
+    ].EVal.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_ID_1'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[0]
+    ].Pfam_ID.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_Descr_1'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[0]
+    ].Pfam_ann.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_EVal_1'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[0]
+    ].EVal.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_ID_2'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[1]
+    ].Pfam_ID.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_Descr_2'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[1]
+    ].Pfam_ann.iat[0]
+    coocc_prots_data[json_valid_key]['Pfam_EVal_2'] = df_pfama.loc[
+        df_pfama.Cluster == pair_clusters[1]
+    ].EVal.iat[0]
     coocc_prots_data[json_valid_key]['Repr_1'] = fasta_reprs[0]
     coocc_prots_data[json_valid_key]['Repr_2'] = fasta_reprs[1]
 
+# Most abundant clusters
+selected_clusters = df_prots_regs.nlargest(top_clusters_number, 'Regs_Count').index
+
+top_clusters_data = {}
+
+for curr_cluster in selected_clusters:
+    print(f'---Process {curr_cluster}---')
+
+    # Representatives sequences
+    fasta_reprs_acc = get_accession(df_clusters.loc[df_clusters.Cluster == curr_cluster].Nucleotide.iat[0],
+                                    df_accessions)
+    fasta_reprs_id = df_clusters.loc[df_clusters.Cluster == curr_cluster].Protein.iat[0]
+
+    path_to_fasta_reprs = input_padloc_data_path / f'{fasta_reprs_acc}/{fasta_reprs_acc}_prodigal.faa'
+
+    fasta_reprs = extract_sequence(path_to_fasta_reprs, (fasta_reprs_id,))
+
+    top_clusters_data[curr_cluster] = {}
+    top_clusters_data[curr_cluster]['Size'] = int(df_prots_regs.loc[curr_cluster, 'Regs_Count'])
+    top_clusters_data[curr_cluster]['PDB_ID'] = df_pdb70.loc[df_pdb70.Cluster == curr_cluster].PDB_ID.iat[0]
+    top_clusters_data[curr_cluster]['PDB_Descr'] = df_pdb70.loc[df_pdb70.Cluster == curr_cluster].PDB_ann.iat[0]
+    top_clusters_data[curr_cluster]['PDB_EVal'] = df_pdb70.loc[df_pdb70.Cluster == curr_cluster].EVal.iat[0]
+    top_clusters_data[curr_cluster]['Pfam_ID'] = df_pfama.loc[df_pfama.Cluster == curr_cluster].Pfam_ID.iat[0]
+    top_clusters_data[curr_cluster]['Pfam_Descr'] = df_pfama.loc[df_pfama.Cluster == curr_cluster].Pfam_ann.iat[0]
+    top_clusters_data[curr_cluster]['Pfam_EVal'] = df_pfama.loc[df_pfama.Cluster == curr_cluster].EVal.iat[0]
+    top_clusters_data[curr_cluster]['Repr'] = fasta_reprs[0]
+
 # Save data
+(pd.DataFrame.from_dict(top_clusters_data, orient='index')
+ .rename_axis('Cluster')
+ .to_csv(output_folder / 'top_clusters_stat.tsv', sep='\t'))
+
+with open(output_folder / 'top_clusters_stat.json', mode='w') as f:
+    json.dump(top_clusters_data, f, indent=4)
+
 (pd.DataFrame.from_dict(coocc_prots_data, orient='index')
  .rename_axis('Pairs')
  .to_csv(output_folder / 'cluster_pairs_stat.tsv', sep='\t'))
 
 with open(output_folder / 'cluster_pairs_stat.json', mode='w') as f:
     json.dump(coocc_prots_data, f, indent=4)
-
