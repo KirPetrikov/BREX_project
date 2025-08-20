@@ -218,6 +218,56 @@ def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def parse_defense_finder_tsv(path_to_tsv, /,
+                             short: bool = True,
+                             add_accession='') -> pd.DataFrame:
+    """
+    Reads DefenseFinder systems tsv in a convenient form.
+    Adds column 'DS_ID' with unique ID to prevent merging of DS with the same name.
+    Add column 'Accession' with assembly accessions if
+    path to table 'Nucleotide-Accession' provided
+
+    Params:
+    - path_to_tsv
+    - short: If 'True' returns only selected columns.
+    - add_accession: If provided path add 'Accession'
+
+    Return:
+    - dataframe
+    """
+
+    df = pd.read_csv(path_to_tsv,
+                     sep='\t',
+                     dtype={'sys_id': str, 'type': str, 'subtype': str,
+                            'activity': str, 'sys_beg': str, 'sys_end': str,
+                            'protein_in_syst': str, 'genes_count': int,
+                            'name_of_profiles_in_sys': str, 'replicon': str},
+                     names=['tmp_ID', 'DF_System', 'DF_System_sub',
+                            'activity', 'sys_beg', 'sys_end',
+                            'All_Proteins', 'genes_count', 'All_Annot', 'Nucleotide'],
+                     skiprows=1
+                     )
+
+    # Create unique DS_IDs
+    df['DS_ID'] = df.apply(
+        lambda x: f'{x.DF_System_sub}%{x.tmp_ID.split("_")[-1]}%{x.Nucleotide}',
+        axis=1
+    )
+
+    cols_for_short = ['DS_ID', 'DF_System', 'DF_System_sub',
+                      'All_Proteins', 'All_Annot','Nucleotide']
+
+    if add_accession:
+        df_acc = pd.read_csv(add_accession, sep='\t')
+        df = df.merge(df_acc[['Nucleotide', 'Accession']], on='Nucleotide', how='left')
+        cols_for_short.append('Accession')
+
+    if short:
+        df = df[cols_for_short]
+
+    return df
+
+
 def parse_padloc_csv(path_to_csv, short: bool = True) -> pd.DataFrame:
     """
     Reads Padloc csv in a convenient form.
