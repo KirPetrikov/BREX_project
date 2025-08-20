@@ -1,4 +1,4 @@
-"""v0.1e
+"""v0.1f
 Scripts collection for import
 """
 import numpy as np
@@ -129,6 +129,7 @@ def coords_selector(frame: pd.DataFrame):
         return max(frame)
     else:
         return frame.unique()[0]
+
 
 def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -282,7 +283,13 @@ def parse_hmmer_domtblout(input_dom_path) -> pd.DataFrame:
     return df
 
 
-def parse_gff(path_to_gff) -> pd.DataFrame:
+def parse_prodigal_gff(path_to_gff,
+                       add_id: bool = True,
+                       with_nucl: bool = True) -> pd.DataFrame:
+    """
+    Parse Prodigal gff-file to pandas DataFrame.
+    Can add gene id as just number or as number with nucleotide preffix
+    """
     gff_cols_names = ('Chrom', 'Sourse', 'Feature', 'Start', 'End',
                       'Score', 'Strand', 'Frame', 'Comment')
     df = pd.read_csv(path_to_gff,
@@ -292,22 +299,11 @@ def parse_gff(path_to_gff) -> pd.DataFrame:
                             'Start': int, 'End': int, 'Score': float,
                             'Strand': str, 'Frame': str, 'Comment': str}
                      )
+    if add_id:
+        pattern = re.compile(r'ID=\d+_(\d+)')
+        df['Gene_ID'] = df.Comment.apply(lambda x: int(re.search(pattern, x).group(1)))
+        if with_nucl:
+            df = df.astype({'Gene_ID': str})
+            df.loc[:, 'Gene_ID'] = df.Chrom + '_' + df.Gene_ID
+
     return df
-
-
-def add_gene_id_to_gff(df: pd.DataFrame, add_nucl: bool = True) -> pd.DataFrame:
-    """
-    For comment lines like: "ID=1_1"
-    where first digit is nucleotide/chromosome, second is gene index
-
-    Params:
-    with_nucl: Add nucleotide/chromosome ID or not
-    """
-    pattern = re.compile(r'ID=\d+_(\d+)')
-    df['Gene_ID'] = df.Comment.apply(lambda x: int(re.search(pattern, x).group(1)))
-    if add_nucl:
-        df = df.astype({'Gene_ID': str})
-        df.loc[:, 'Gene_ID'] = df.Chrom + '_' + df.Gene_ID
-    return df
-
-
