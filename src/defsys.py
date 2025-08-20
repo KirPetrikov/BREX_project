@@ -255,7 +255,7 @@ def parse_defense_finder_tsv(path_to_tsv, /,
     )
 
     cols_for_short = ['DS_ID', 'DF_System', 'DF_System_sub',
-                      'All_Proteins', 'All_Annot','Nucleotide']
+                      'All_Proteins', 'All_Annot', 'Nucleotide']
 
     if add_accession:
         df_acc = pd.read_csv(add_accession, sep='\t')
@@ -303,6 +303,32 @@ def parse_padloc_csv(path_to_csv, short: bool = True) -> pd.DataFrame:
         return df.iloc[:, [0, 1, 2, 3, 6, 11, 12, 13, 18]]
     else:
         return df
+
+
+def make_unidir_genes_defsys(df: pd.DataFrame):
+    """
+    Modifies table by choosing uniform strandness/direction of genes within every DS.
+    By voting, or '+' in case of equality
+    """
+
+    nonunidir_defsys_ids = (df.loc[:, ('Strand', 'DS_ID')]
+                            .groupby('DS_ID')['Strand']
+                            .agg(pd.Series.nunique)
+                            .loc[lambda x: x > 1]
+                            .index)
+
+    if not nonunidir_defsys_ids.empty:
+        strand = (
+            df.loc[df.DS_ID.isin(nonunidir_defsys_ids)]
+              .groupby(['DS_ID'])['Strand']
+              .agg(
+                lambda x: x.value_counts().sort_index().idxmax()
+              )
+        )
+
+        df.loc[df.DS_ID.isin(nonunidir_defsys_ids), 'Strand'] = (
+            df.loc[df.DS_ID.isin(nonunidir_defsys_ids), 'DS_ID'].map(strand)
+        )
 
 
 def parse_hmmer_domtblout(input_dom_path) -> pd.DataFrame:
