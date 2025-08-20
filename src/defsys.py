@@ -1,4 +1,4 @@
-"""v0.1f
+"""v0.2
 Scripts collection for import
 """
 import numpy as np
@@ -136,29 +136,41 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     Create summary for defense systems
 
     Params:
-    - dataframe: Parsed Padloc csv, short form (defsys.parse_padloc_csv).
-                 The genes of each system must be unidirectional.
+    - dataframe: table of DFs' proteins.
+                 Must contain cols:
+                 ('DS_ID', 'Accession', 'Nucleotide', 'Protein', 'System', 'Start', 'End', 'Strand')
+                 The strandness in each system must be uniform.
 
      Return:
     - dataframe: Every row - unique DS; index - 'DS_ID'.
                  Columns:
-                 - 'Nucleotide', 'DS_ID', 'Strand': unique values;
+                 - 'Accession', 'Nucleotide', 'DS_ID', 'Strand': corr. values;
                  - 'Start', 'End': DS's region boundary coordinates;
                  - 'DS_Prots': list, IDs of DS's proteins
                  - 'Have_inner': True/False
     """
 
-    df_result = (df.loc[:, ['DS_ID', 'Nucleotide', 'System', 'Start', 'End', 'Strand']]
-                   .groupby('DS_ID')
-                   .agg(coords_selector))
+    df_result = (
+        df.loc[:, ['DS_ID', 'Accession', 'Nucleotide', 'System', 'Start', 'End', 'Strand']]
+          .groupby('DS_ID')
+          .agg(coords_selector)
+    )
 
     # Get only proteins numbers of all DS
-    df_result['DS_Prots'] = (df.loc[:, ['DS_ID', 'Protein']]
-                               .groupby('DS_ID')
-                               .agg(lambda x: [int(i.split('_')[-1]) for i in x]))
+    df_result['DS_Prots'] = (
+        df.loc[:, ['DS_ID', 'Protein']]
+          .groupby('DS_ID')
+          .agg(
+            lambda x: [int(i.split('_')[-1]) for i in x]
+          )
+    )
 
     # Check presence of any inner genes in every DS
-    df_result['Have_inner'] = df_result['DS_Prots'].apply(lambda x: set(x) != set(range(min(x), max(x) + 1)))
+    df_result['Have_inner'] = df_result['DS_Prots'].apply(
+        lambda x: set(x) != set(
+            range(min(x), max(x) + 1)
+        )
+    )
 
     return df_result
 
@@ -179,15 +191,15 @@ def select_target_dupl_defsys(df: pd.DataFrame, target_defsys: str, dupl_ready: 
                                             )
                                      )
     # Select proteins
-    duplicated_prots_brex = dupl_prots_from_target_defsys[dupl_prots_from_target_defsys].index
+    duplicated_prots_target = dupl_prots_from_target_defsys[dupl_prots_from_target_defsys].index
 
     # Select IDs of all DS which contain duplicated proteins
-    dupl_defsys_ids_brex = df[df['Protein'].isin(duplicated_prots_brex)].DS_ID.unique()
+    dupl_defsys_ids_target = df[df['Protein'].isin(duplicated_prots_target)].DS_ID.unique()
 
     # Select full DS
-    df_dupl_brex = df[df.DS_ID.isin(dupl_defsys_ids_brex)]
+    df_dupl_target = df[df.DS_ID.isin(dupl_defsys_ids_target)]
 
-    return df_dupl_brex
+    return df_dupl_target
 
 
 def create_dupl_proteins_summary(df: pd.DataFrame) -> pd.DataFrame:
