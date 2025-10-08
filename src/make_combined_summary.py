@@ -18,7 +18,7 @@ data_path = Path('/home/niagara/Storage/MetaRus/k_petrikov/2024_BREX/Data')
 input_ann_path = data_path / 'protein_annotations_20250822.tsv'
 input_accessions_path = data_path / 'Accessions_summary.tsv'
 
-input_pdf_comb_path = data_path / '20250822_PDF_Comb/PDF_comb_results'
+input_pdf_comb_path = data_path / '20251007_PDF_Comb/PDF_comb_results'
 
 input_padloc_summary_path = data_path / '20250323_defsys_summary/defsys_summary_all.json'
 input_padloc_dupl_path = data_path / '20250323_defsys_summary/duplicated_defsys.tsv'
@@ -26,7 +26,7 @@ input_dfnfnr_summary_path = data_path / '20250820_dfnfnr_summary/defsys_summary_
 
 input_padloc_uniq_path = data_path / 'padloc_uniq_ds_ids.txt'
 
-output_results_path = data_path / '20250822_combined_summary'
+output_results_path = data_path / '20251008_combined_summary'
 output_results_path.mkdir(parents=True, exist_ok=True)
 
 # --- Add unique DS_ID for each DS/row in ann-table
