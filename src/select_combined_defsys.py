@@ -2,7 +2,7 @@
 Takes summary of Padloc and DF results, and table with they combined output.
 Create combined summary by choosing unique DS id.
 In case of ambiguity priority choice is Padloc variant.
-Considers DFs, which are joined in combined output table ('DS1/DS2'), just selects first.
+Considers DSs, which are merged in combined output table ('DS1/DS2'), just selects first.
 Checks duplicated proteins.
 Also takes list of DS ids from genomes, processed only by Padloc, and adds them to combined summary.
 """
@@ -29,7 +29,7 @@ input_padloc_uniq_path = data_path / 'padloc_uniq_ds_ids.txt'
 output_results_path = data_path / '20250822_combined_summary'
 output_results_path.mkdir(parents=True, exist_ok=True)
 
-# --- Add unique DS_ID for each DF/row in ann-table
+# --- Add unique DS_ID for each DS/row in ann-table
 df_ann = (
     pd.read_csv(
         input_ann_path,
@@ -46,7 +46,7 @@ df_ann = (
 dfnfnr_mask = (df_ann.DF_DS_ID != 'miss').values
 padloc_mask = (df_ann.Padloc_System != 'miss').values
 
-# "Tmp-ids - DS_IDs" correspondence for DF.
+# "Tmp-ids - DS_IDs" correspondence for DF
 print('---Tmp-ids for DF---')
 df_ann['df_tmp_id'] = df_ann.loc[dfnfnr_mask].apply(
     lambda x: f'{x.Protein}%{x.DF_System_sub}',
@@ -107,13 +107,13 @@ for pdf_comb_table in input_pdf_comb_path.iterdir():
     pdfc_padloc_mask = (df_pdfc.Padloc_System != 'N.A.').values
 
     df_pdfc['tmpid'] = ''
-    df_pdfc.loc[pdfc_padloc_mask, 'tmpid'] = df_pdfc.apply(
+    df_pdfc.loc[pdfc_padloc_mask, 'tmpid'] = df_pdfc.loc[pdfc_padloc_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.Padloc_System_sub}',
         axis=1
     )
 
     # Tmp-ids for DF
-    df_pdfc.loc[~pdfc_padloc_mask, 'tmpid'] = df_pdfc.apply(
+    df_pdfc.loc[~pdfc_padloc_mask, 'tmpid'] = df_pdfc.loc[~pdfc_padloc_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.DF_System_sub}',
         axis=1
     )
@@ -157,18 +157,7 @@ for pdf_comb_table in input_pdf_comb_path.iterdir():
     if defsys_number != df_pdfc.shape[0]:
         print(f'Warning: DS missed in {pdf_comb_table.stem}')
 
-# --- Save intermediate results
-with open(output_results_path / 'tmp_padloc_sel_ids.txt', mode='w') as f:
-    f.write('\n'.join(padloc_sel_ids))
-with open(output_results_path / 'tmp_dfnfnr_sel_ids.txt', mode='w') as f:
-    f.write('\n'.join(dfnfnr_sel_ids))
-
-pd.DataFrame(duplicated_ds_ids).to_csv(
-    output_results_path / 'duplicated_ds_ids.tsv',
-    sep='\t',
-    index=False
-)
-
+# --- Save merged/splitted defsys
 pd.DataFrame(splitted_ds_ids).to_csv(
     output_results_path / 'splitted_ds_ids.tsv',
     sep='\t',
@@ -206,7 +195,7 @@ print('---Combined DS summary selection completed---')
 df_padloc_dupl = pd.read_csv(input_padloc_dupl_path, sep='\t')
 df_padloc_dupl = df_padloc_dupl.loc[df_padloc_dupl.DS_ID.isin(padloc_uniq_ds_ids)]
 
-# Add Accessions
+# Add Accessions to them
 df_acc = pd.read_csv(input_accessions_path, sep='\t')[['Nucleotide', 'Accession']]
 df_padloc_dupl = df_padloc_dupl.merge(df_acc, on='Nucleotide', how='left')
 
