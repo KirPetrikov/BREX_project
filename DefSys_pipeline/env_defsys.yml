@@ -1,0 +1,8 @@
+# This file may be used to create an environment:
+# conda create --file env_defsys.yml
+name: defsys_combine
+dependencies:
+  - python=3.12.5
+  - pandas=2.2.2
+
+
