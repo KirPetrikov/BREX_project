@@ -4,6 +4,8 @@ Common scripts for pipeline
 import pandas as pd
 import re
 
+from io import StringIO
+
 pd.options.mode.copy_on_write = True
 
 
@@ -110,30 +112,53 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     return df_result
 
 
-def parse_prodigal_gff(path_to_gff,
-                       add_id: bool = True,
-                       with_nucl: bool = True) -> pd.DataFrame:
+def parse_gff(path_to_gff,
+              add_id: str = '') -> pd.DataFrame:
     """
-    Parse Prodigal gff-file to pandas DataFrame.
+    Parse gff-file to pandas DataFrame.
     Can add gene id as just number or as number with nucleotide prefix
     """
     gff_cols_names = ('Nucleotide', 'Sourse', 'Feature', 'Start', 'End',
                       'Score', 'Strand', 'Frame', 'Comment')
-    df = pd.read_csv(path_to_gff,
-                     sep='\t',
-                     names=gff_cols_names,
-                     dtype={'Nucleotide': str, 'Sourse': str, 'Feature': str,
-                            'Start': int, 'End': int, 'Score': float,
-                            'Strand': str, 'Frame': str, 'Comment': str})
+    try:
+        df = pd.read_csv(path_to_gff,
+                         sep='\t',
+                         names=gff_cols_names,
+                         dtype={'Nucleotide': str, 'Sourse': str, 'Feature': str,
+                                'Start': int, 'End': int,
+                                'Strand': str, 'Frame': str, 'Comment': str},
+                         comment='#')
+    except ValueError:
+        # Handle with gff-files contained sequences
+        def read_head_as_df(filepath, separator):
+            buffer = StringIO()
+            with open(filepath) as f:
+                for line in f:
+                    if separator in line:
+                        break
+                    buffer.write(line)
+            buffer.seek(0)
+            return buffer
+
+        df = pd.read_csv(read_head_as_df(path_to_gff, '##FASTA'),
+                         sep='\t',
+                         names=gff_cols_names,
+                         dtype={'Nucleotide': str, 'Sourse': str, 'Feature': str,
+                                'Start': int, 'End': int,
+                                'Strand': str, 'Frame': str, 'Comment': str},
+                         comment='#'
+                         )
+
     if add_id:
-        pattern = re.compile(r'ID=\d+_(\d+)')
+        def get_protein_id(frame, pat):
+            try:
+                prot_id = re.search(pat, frame).group(1)
+                return prot_id
+            except AttributeError:
+                return 0
 
-        df['Protein'] = df.Comment.apply(
-            lambda x: int(re.search(pattern, x).group(1))
-        )
+        pattern = re.compile(add_id)
 
-        if with_nucl:
-            df = df.astype({'Protein': str})
-            df.loc[:, 'Protein'] = df.Nucleotide + '_' + df.Protein
+        df['ID'] = df.Comment.apply(get_protein_id, args=(pattern,))
 
     return df

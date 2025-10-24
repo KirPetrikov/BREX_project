@@ -66,7 +66,7 @@ def parse_padloc_csv(path_to_csv: str | Path, unifyed: bool = True) -> pd.DataFr
 
     # Create unique DefSystems IDs
     df['DS_ID'] = df['System'] + '%' + df['SysNo'] + '%' + df['Nucleotide']
-    df['Accession'] = path_to_csv.name[:-11]
+    df['Accession'] = Path(path_to_csv).parent.name
 
     if unifyed:
         return df[
@@ -76,7 +76,42 @@ def parse_padloc_csv(path_to_csv: str | Path, unifyed: bool = True) -> pd.DataFr
         return df
 
 
-def process_single_padloc_table(path_to_csv: str | Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def parse_padloc_csv_rough(path_to_csv: str | Path,
+                           sample_id) -> pd.DataFrame:
+    """
+    Reads Padloc csv and create table in convinient form.
+    """
+
+    df = pd.read_csv(path_to_csv,
+                     names=['SysNo', 'Nucleotide', 'System', 'Protein',
+                            'HMM_profile', 'HMM_prot_name', 'Annotation', 'Eval_full',
+                            'Eval_i', 'Cov_target', 'Cov_hmm', 'Start', 'End', 'Strand',
+                            'Description', 'Protein_ID', 'Contig_end', 'All'],
+                     index_col=None,
+                     dtype={'SysNo': str, 'Nucleotide': str, 'System': str, 'Protein': str,
+                            'HMM_profile': str, 'HMM_prot_name': str, 'Annotation': str,
+                            'Eval_full': float, 'Eval_i': float, 'Cov_target': float, 'Cov_hmm': float,
+                            'Start': int, 'End': int, 'Strand': str, 'Description': str,
+                            'Protein_ID': int, 'Contig_end': int, 'All': str},
+                     usecols=[_ for _ in range(18)],
+                     skiprows=1
+                     )
+
+    df['Accession'] = sample_id
+    df['DS_ID'] = df['System'] + '%' + df['SysNo'] + '%' + df['Accession']
+    df['tmp_Nucleotide'] = df.Protein.apply(lambda x: x.split('_')[0])
+    df['tmp_num'] = df.Nucleotide.apply(lambda x: x.split('_')[-1])
+    df.loc[:, 'Nucleotide'] = df.tmp_Nucleotide + df.tmp_num
+
+    return df[['Accession', 'Nucleotide', 'DS_ID', 'Protein',
+               'Annotation', 'System', 'Start', 'End', 'Strand']]
+
+
+def process_single_padloc_table(
+        path_to_csv: str | Path,
+        sample_id,
+        rough=False
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     From Padloc csv creates summary for all DS, proteins annotations table,
     finds DS where there is proteins redundancy (but does not take it into account).
@@ -90,7 +125,10 @@ def process_single_padloc_table(path_to_csv: str | Path) -> tuple[pd.DataFrame, 
     - df_rdn: Table with DSs where there is protein redundansy
     """
 
-    df_all = parse_padloc_csv(path_to_csv)
+    if rough:
+        df_all = parse_padloc_csv_rough(path_to_csv, sample_id)
+    else:
+        df_all = parse_padloc_csv(path_to_csv, sample_id)
 
     df_rdn = find_redundancy_defsys(df_all)
 
@@ -105,20 +143,24 @@ def process_single_padloc_table(path_to_csv: str | Path) -> tuple[pd.DataFrame, 
     return defsys_summary, df_proteins, df_rdn
 
 
-def process_padloc_data(
-        input_data_path: Path,
-        results_path: Path
+def process_padloc_data_rough(
+        input_samples: list[tuple],
+        results_path
 ) -> None:
-    results_path.mkdir(parents=True, exist_ok=True)
+    Path(results_path).mkdir(parents=True, exist_ok=True)
 
     summary_defsys_all = {}
     redundancy_defsys_all = []
     protein_annotations_all = []
 
-    for folder in input_data_path.iterdir():
-        print(f'---Processing {folder.name}---')
+    for sample_id, table_file in input_samples:
+        print(f'---Processing {sample_id}---')
 
-        summary_curr, prot_curr, rdn_curr = process_single_padloc_table(folder / f'{folder.name}_padloc.csv')
+        summary_curr, prot_curr, rdn_curr = process_single_padloc_table(
+            table_file,
+            sample_id,
+            True
+        )
 
         protein_annotations_all.append(prot_curr)
 
@@ -127,25 +169,77 @@ def process_padloc_data(
         summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
         # --- Write current results ---
-        curr_accession_result_path = results_path / f'By_Accessions/{folder.name}'
+        curr_accession_result_path = Path(results_path) / 'By_Accessions'
         curr_accession_result_path.mkdir(parents=True, exist_ok=True)
-        summary_curr.to_json(curr_accession_result_path / f'{folder.name}_summary.json', orient='index')
+        summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
+                             orient='index',
+                             indent=4)
 
     # --- Write results ---
     if redundancy_defsys_all:
         (
             pd.concat(redundancy_defsys_all)
               .reset_index(drop=True)
-              .to_csv(results_path / 'redundant_defsys.tsv', sep='\t', index=False)
+              .to_csv(Path(results_path) / 'redundant_defsys.tsv', sep='\t', index=False)
         )
 
     (
         pd.concat(protein_annotations_all)
           .reset_index(drop=True)
-          .to_csv(results_path / 'protein_annotations.tsv', sep='\t', index=False)
+          .to_csv(Path(results_path) / 'protein_annotations.tsv', sep='\t', index=False)
     )
 
-    with open(results_path / 'defsys_summary.json', mode='w') as f:
+    with open(Path(results_path) / 'defsys_summary.json', mode='w') as f:
+        json.dump(summary_defsys_all, f, indent=4)
+
+
+def process_padloc_data(
+        input_data_path,
+        results_path
+) -> None:
+    Path(results_path).mkdir(parents=True, exist_ok=True)
+
+    summary_defsys_all = {}
+    redundancy_defsys_all = []
+    protein_annotations_all = []
+
+    for folder in Path(input_data_path).iterdir():
+        sample_id = folder.name
+        print(f'---Processing {sample_id}---')
+
+        summary_curr, prot_curr, rdn_curr = process_single_padloc_table(
+            folder / f'{sample_id}_padloc.csv',
+            sample_id
+        )
+
+        protein_annotations_all.append(prot_curr)
+
+        redundancy_defsys_all.append(rdn_curr)
+
+        summary_defsys_all.update(summary_curr.to_dict(orient='index'))
+
+        # --- Write current results ---
+        curr_accession_result_path = results_path / f'By_Accessions/{sample_id}'
+        curr_accession_result_path.mkdir(parents=True, exist_ok=True)
+        summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
+                             orient='index',
+                             indent=4)
+
+    # --- Write results ---
+    if redundancy_defsys_all:
+        (
+            pd.concat(redundancy_defsys_all)
+              .reset_index(drop=True)
+              .to_csv(Path(results_path) / 'redundant_defsys.tsv', sep='\t', index=False)
+        )
+
+    (
+        pd.concat(protein_annotations_all)
+          .reset_index(drop=True)
+          .to_csv(Path(results_path) / 'protein_annotations.tsv', sep='\t', index=False)
+    )
+
+    with open(Path(results_path) / 'defsys_summary.json', mode='w') as f:
         json.dump(summary_defsys_all, f, indent=4)
 
 

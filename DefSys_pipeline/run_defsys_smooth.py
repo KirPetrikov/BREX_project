@@ -25,6 +25,8 @@ def parse_arguments():
                         help='Path to the DefenseFinder folder')
     parser.add_argument('-g', '--gff', type=Path,
                         help='Path to the folder with Prodigal gff-files for DefenseFinder')
+    parser.add_argument('-x', '--regex', type=str,
+                        help='Regex pattern to searg genes IDs in ggf-file Comment')
     parser.add_argument('-o', '--output', type=Path,
                         help='Path to the results folder. Will be created if it does not exist')
     return parser.parse_args()
@@ -95,66 +97,82 @@ def merge_annotations(
     return common_accessions
 
 
-args = parse_arguments()
-padloc = args.padloc
-dfnfnr = args.defensefinder
-gff = args.gff
-results_path = args.output
-results_path.mkdir(parents=True, exist_ok=True)
+def run_defsys_smooth(padloc,
+                      dfnfnr,
+                      gff,
+                      pattern: str,
+                      results_path):
 
-print('\n>>> Padloc processing')
+    print('\n >>> Run smooth DefSys pipeline <<<')
+    results_path = Path(results_path)
+    results_path.mkdir(parents=True, exist_ok=True)
 
-padloc_results = Path(args.output) / 'Summary_Padloc'
-padloc_results.mkdir(parents=True, exist_ok=True)
-process_padloc_data(
-    padloc,
-    padloc_results
-)
+    print('\n>>> Padloc processing')
 
-print('\n>>> DefenseFinder processing')
-
-dfnfnr_results = Path(args.output) / 'Summary_DefenseFinder'
-dfnfnr_results.mkdir(parents=True, exist_ok=True)
-process_dfnfnr_data(
-    dfnfnr,
-    gff,
-    dfnfnr_results
-)
-
-print('\n>>> Merge annotations')
-accessions = merge_annotations(
-    padloc_results / 'protein_annotations.tsv',
-    dfnfnr_results / 'protein_annotations.tsv',
-    results_path
-)
-
-print('\n>>> Make samples list')
-samples_list = []
-for acc in accessions:
-    samples_list.append(
-        f'{acc},{dfnfnr}/{acc},{padloc}/{acc}\n'
+    padloc_results = results_path / 'Summary_Padloc'
+    padloc_results.mkdir(parents=True, exist_ok=True)
+    process_padloc_data(
+        Path(padloc),
+        Path(padloc_results)
     )
-samples = ''.join(samples_list)
-with open(results_path / 'samples.csv', mode='w') as f:
-    f.write(samples)
 
-print('\n>>> Merge Padloc and DefenseFinder defense systems')
-merge_results = results_path / 'PDF_merge'
-merge_results.mkdir(parents=True, exist_ok=True)
-merge_padloc_and_defensefinder(
-    results_path / 'samples.csv',
-    merge_results
-)
+    print('\n>>> DefenseFinder processing')
 
-print('\n>>> Make combined defense system summary')
-make_combined_summary(
-    results_path / 'Merged_annotations.tsv',
-    results_path / 'PDF_merge/By_Accessions',
-    results_path / 'Summary_Padloc/defsys_summary.json',
-    results_path / 'Summary_Padloc/redundant_defsys.tsv',
-    results_path / 'Unique_accessions_Padloc.txt',
-    results_path / 'Summary_DefenseFinder/defsys_summary.json',
-    results_path / 'Summary_DefenseFinder/redundant_defsys.tsv',
-    results_path / 'Unique_accessions_DefenseFinder.txt',
-    results_path
-)
+    dfnfnr_results = results_path / 'Summary_DefenseFinder'
+    dfnfnr_results.mkdir(parents=True, exist_ok=True)
+    process_dfnfnr_data(
+        dfnfnr,
+        gff,
+        pattern,
+        dfnfnr_results
+    )
+
+    print('\n>>> Merge annotations')
+    accessions = merge_annotations(
+        padloc_results / 'protein_annotations.tsv',
+        dfnfnr_results / 'protein_annotations.tsv',
+        results_path
+    )
+
+    print('\n>>> Make samples list')
+    samples_list = []
+    for acc in accessions:
+        samples_list.append(
+            f'{acc},{dfnfnr}/{acc},{padloc}/{acc}\n'
+        )
+    samples = ''.join(samples_list)
+    with open(results_path / 'samples.csv', mode='w') as f:
+        f.write(samples)
+
+    print('\n>>> Merge Padloc and DefenseFinder defense systems')
+    merge_results = results_path / 'PDF_merge'
+    merge_results.mkdir(parents=True, exist_ok=True)
+    merge_padloc_and_defensefinder(
+        results_path / 'samples.csv',
+        merge_results
+    )
+
+    print('\n>>> Make combined defense system summary')
+    make_combined_summary(
+        results_path / 'Merged_annotations.tsv',
+        results_path / 'PDF_merge/By_Accessions',
+        results_path / 'Summary_Padloc/defsys_summary.json',
+        results_path / 'Summary_Padloc/redundant_defsys.tsv',
+        results_path / 'Unique_accessions_Padloc.txt',
+        results_path / 'Summary_DefenseFinder/defsys_summary.json',
+        results_path / 'Summary_DefenseFinder/redundant_defsys.tsv',
+        results_path / 'Unique_accessions_DefenseFinder.txt',
+        results_path
+    )
+
+    print("That's all")
+
+
+if __name__ == '__main__':
+    args = parse_arguments()
+
+    run_defsys_smooth(args.padloc,
+                      args.defensefinder,
+                      args.gff,
+                      args.regex,
+                      args.output)

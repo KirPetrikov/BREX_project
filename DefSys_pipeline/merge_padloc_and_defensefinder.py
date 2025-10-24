@@ -530,7 +530,7 @@ def merge_padloc_and_defensefinder(samples, output_path) -> None:
                 print(f'Образец {i} вызвал исключение: {exc}', file=sys.stderr)
                 # exceptions_socket.append([i, exc])
 
-    print('--- Merging Padloc and DefenseFinder is finished')
+    print('---Merging Padloc and DefenseFinder is complet')
 
     # if exceptions_socket:
     #     print(f'Образцы, вызвавшие исключения: {exceptions_socket}')

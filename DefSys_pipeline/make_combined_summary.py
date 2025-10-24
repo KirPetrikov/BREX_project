@@ -283,7 +283,7 @@ def make_combined_summary(
     with open(results_path / 'Combined_summary.json', mode='w') as f:
         json.dump(combined_summary, f, indent=4)
 
-    print('---Combined summary making is completed---')
+    print('---Making combined summary is complet---')
 
 
 if __name__ == '__main__':
