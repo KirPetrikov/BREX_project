@@ -153,27 +153,29 @@ def process_padloc_data_rough(
     redundancy_defsys_all = []
     protein_annotations_all = []
 
-    for sample_id, table_file in input_samples:
-        print(f'---Processing {sample_id}---')
+    for sample_id, padloc_dir in input_samples:
+        for file_name in Path(padloc_dir).iterdir():
+            if str(file_name).endswith('padloc.csv'):
+                print(f'---Processing {sample_id}---')
 
-        summary_curr, prot_curr, rdn_curr = process_single_padloc_table(
-            table_file,
-            sample_id,
-            True
-        )
+                summary_curr, prot_curr, rdn_curr = process_single_padloc_table(
+                    file_name,
+                    sample_id,
+                    True
+                )
 
-        protein_annotations_all.append(prot_curr)
+                protein_annotations_all.append(prot_curr)
 
-        redundancy_defsys_all.append(rdn_curr)
+                redundancy_defsys_all.append(rdn_curr)
 
-        summary_defsys_all.update(summary_curr.to_dict(orient='index'))
+                summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
-        # --- Write current results ---
-        curr_accession_result_path = Path(results_path) / 'By_Accessions'
-        curr_accession_result_path.mkdir(parents=True, exist_ok=True)
-        summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
-                             orient='index',
-                             indent=4)
+                # --- Write current results ---
+                curr_accession_result_path = Path(results_path) / 'By_Accessions'
+                curr_accession_result_path.mkdir(parents=True, exist_ok=True)
+                summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
+                                     orient='index',
+                                     indent=4)
 
     # --- Write results ---
     if redundancy_defsys_all:

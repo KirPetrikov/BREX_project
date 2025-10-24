@@ -289,28 +289,30 @@ def process_dfnfnr_data_rough(
     protein_annotations_all = []
     antidefense_all = []
 
-    for sample_id, table_file, gff_file in input_samples:
-        print(f'---Processing {sample_id}---')
+    for sample_id, dfnfnr_dir, gff_file in input_samples:
+        for file_name in Path(dfnfnr_dir).iterdir():
+            if str(file_name).endswith('genes.tsv'):
+                print(f'---Processing {sample_id}---')
 
-        summary_curr, prot_curr, rdn_curr, anti_curr = process_single_dfnfnr_table(
-            table_file,
-            gff_file,
-            pattern,
-            True
-        )
+                summary_curr, prot_curr, rdn_curr, anti_curr = process_single_dfnfnr_table(
+                    file_name,
+                    gff_file,
+                    pattern,
+                    True
+                )
 
-        protein_annotations_all.append(prot_curr)
+                protein_annotations_all.append(prot_curr)
 
-        redundancy_defsys_all.append(rdn_curr)
+                redundancy_defsys_all.append(rdn_curr)
 
-        summary_defsys_all.update(summary_curr.to_dict(orient='index'))
+                summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
-        antidefense_all.append(anti_curr)
+                antidefense_all.append(anti_curr)
 
-        # --- Write current results ---
-        curr_accession_result_path = Path(results_path) / 'By_Accessions'
-        curr_accession_result_path.mkdir(parents=True, exist_ok=True)
-        summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json', orient='index')
+                # --- Write current results ---
+                curr_accession_result_path = Path(results_path) / 'By_Accessions'
+                curr_accession_result_path.mkdir(parents=True, exist_ok=True)
+                summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json', orient='index')
 
     # --- Write results ---
     if redundancy_defsys_all:

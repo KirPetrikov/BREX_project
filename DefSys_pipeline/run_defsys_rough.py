@@ -44,8 +44,8 @@ def parse_csv_input(input_samples_file, output):
             padloc.append((row[0], row[1]))
             dfnfnr.append((row[0], row[2], row[3]))
             merging_list.append((row[0],
-                                 str(Path(row[2]).parents[0]),
-                                 str(Path(row[1]).parents[0])))
+                                row[2],
+                                row[1]))
 
     with open(output / 'samples_for_merging.csv', mode='w') as f:
         for line in merging_list:
