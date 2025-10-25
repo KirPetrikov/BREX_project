@@ -214,7 +214,7 @@ def process_single_dfnfnr_table(
     return defsys_summary[cols_order], df_proteins, df_rdn, df_anti
 
 
-def process_dfnfnr_data(
+def process_dfnfnr_data_smooth(
         input_data_path,
         input_gff_path,
         pattern,
@@ -344,8 +344,4 @@ def process_dfnfnr_data_rough(
 if __name__ == '__main__':
     args = parse_arguments()
 
-    process_dfnfnr_data(
-        Path(args.input_data_path),
-        Path(args.input_gff_path),
-        Path(args.output_path)
-    )
+    process_dfnfnr_data_smooth(Path(args.input_data_path), Path(args.input_gff_path), Path(args.output_path), )

@@ -195,7 +195,7 @@ def process_padloc_data_rough(
         json.dump(summary_defsys_all, f, indent=4)
 
 
-def process_padloc_data(
+def process_padloc_data_smooth(
         input_data_path,
         results_path
 ) -> None:
@@ -248,7 +248,4 @@ def process_padloc_data(
 if __name__ == '__main__':
     args = parse_arguments()
 
-    process_padloc_data(
-        Path(args.input_data_path),
-        Path(args.output_path)
-    )
+    process_padloc_data_smooth(Path(args.input_data_path), Path(args.output_path))

@@ -1,4 +1,4 @@
-"""v0.1
+"""v0.1p
 WARNING: docstring for rough pipeline do not updadted!
 
 # TODO Update docstrings
@@ -32,6 +32,29 @@ def parse_arguments():
     parser.add_argument('-o', '--output_path', type=Path,
                         help='Path to the results folder. Will be created if it does not exist')
     return parser.parse_args()
+
+
+def test_csv_input(input_samples_file):
+    print('\n >>> Check files <<<')
+
+    with open(input_samples_file, newline='') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            flag = False
+            for file_name in Path(row[2]).iterdir():
+                if str(file_name).endswith('genes.tsv'):
+                    flag = True
+            assert flag, f'Missed DefenseFinder "genes.tsv" file in {row[2]}'
+
+            flag = False
+            for file_name in Path(row[1]).iterdir():
+                if str(file_name).endswith('padloc.csv'):
+                    flag = True
+            assert flag, f'Missed Padloc "padloc.csv" file in {row[1]}'
+
+            assert Path(row[3]).exists(), f'Missed gff-file in {row[1]}'
+
+    print('---Checking is complete')
 
 
 def parse_csv_input(input_samples_file, output):
@@ -124,6 +147,7 @@ def merge_annotations(
 
 
 def run_defsys_rough(samples_list, pattern, output_path):
+
     print('\n >>> Run rough DefSys pipeline <<<')
 
     output_path.mkdir(parents=True, exist_ok=True)
@@ -173,6 +197,8 @@ def run_defsys_rough(samples_list, pattern, output_path):
 
 if __name__ == '__main__':
     args = parse_arguments()
+
+    test_csv_input(args.samples_list)
 
     run_defsys_rough(args.samples_list,
                      args.regex,
