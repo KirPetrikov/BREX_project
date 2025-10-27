@@ -1,10 +1,13 @@
-"""v0.3p
-Takes json-summaries of Padloc and DF, and table with their merged results.
+"""v0.4
 Create combined summary by choosing unique DS id.
-In case of ambiguity priority choice is Padloc variant.
+In case of ambiguity priority choice is DefenseFinder variant.
 Considers DSs, which are joined in combined output table ('DS1/DS2'), and just selects first.
 Checks protein redundancy.
 Also takes lists of accessios uniquely processed by each tool, and adds them to combined summary.
+
+Takes , mergeded protein annotations table, lists of Padloc and DF unique accessions,
+lists of Padloc and DF redundant defsystems, 
+unified json-summaries of Padloc and DF, tables with their merged results.
 
 Output:
 - "Combined_summary.json"
@@ -25,23 +28,23 @@ def parse_arguments():
     )
 
     parser.add_argument('-a', '--input_ann_path', type=Path, required=True,
-                        help='Relative path to merged annotation file')
+                        help='Path to merged annotation file')
     parser.add_argument('-t', '--input_merged_table_path', type=Path, required=True,
-                        help='Relative path to combined PDF directory')
+                        help='Path to combined Padloc-DefenceFinder tables')
 
     parser.add_argument('-p', '--input_padloc_summary_path', type=Path, required=True,
-                        help='Relative path to Padloc summary JSON file')
-    parser.add_argument('-l', '--input_padloc_dupl_path', type=Path, required=True,
-                        help='Relative path to Padloc redundant systems file')
+                        help='Path to Padloc summary JSON file')
+    parser.add_argument('-l', '--input_padloc_redund_path', type=Path, required=True,
+                        help='Path to Padloc redundant systems file')
     parser.add_argument('-c', '--input_padloc_uniq_path', type=Path, required=True,
-                        help='Unique Padloc accessions file')
+                        help='Path to unique Padloc accessions file')
 
     parser.add_argument('-d', '--input_dfnfnr_summary_path', type=Path, required=True,
-                        help='Relative path to DefenseFinder summary JSON file')
-    parser.add_argument('-f', '--input_dfnfnr_dupl_path', type=Path, required=True,
-                        help='Relative path to DefenseFinder redundant systems file')
+                        help='Path to DefenseFinder summary JSON file')
+    parser.add_argument('-f', '--input_dfnfnr_redund_path', type=Path, required=True,
+                        help='Path to DefenseFinder redundant systems file')
     parser.add_argument('-n', '--input_dfnfnr_uniq_path', type=str, required=True,
-                        help='Unique DefenseFinder accessions file')
+                        help='Path to unique DefenseFinder accessions file')
 
     parser.add_argument('-o', '--output_results_path', type=Path, required=True,
                         help='Output results directory')
@@ -137,26 +140,25 @@ def process_merged_table(
                 df_pdfc.loc[i, tool_col] = df_pdfc.loc[i, tool_col].split('/')[0]
 
     # --- Mapping of DS_ID
+    pdfc_dfnfnr_mask = (df_pdfc.DF_System != 'N.A.').values
     # Tmp-ids for Padloc
-    pdfc_padloc_mask = (df_pdfc.Padloc_System != 'N.A.').values
-
     df_pdfc['tmpid'] = ''
-    df_pdfc.loc[pdfc_padloc_mask, 'tmpid'] = df_pdfc.loc[pdfc_padloc_mask].apply(
+    df_pdfc.loc[~pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[~pdfc_dfnfnr_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.Padloc_System_sub}',
         axis=1
     )
 
     # Tmp-ids for DF
-    df_pdfc.loc[~pdfc_padloc_mask, 'tmpid'] = df_pdfc.loc[~pdfc_padloc_mask].apply(
+    df_pdfc.loc[pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[pdfc_dfnfnr_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.DF_System_sub}',
         axis=1
     )
 
     df_pdfc['DS_ID'] = ''
-    padloc_sel_ids = [padloc_dict[i] for i in df_pdfc.loc[pdfc_padloc_mask, 'tmpid'].values]
-    df_pdfc.loc[pdfc_padloc_mask, 'DS_ID'] = padloc_sel_ids
-    dfnfnr_sel_ids = [df_dict[i] for i in df_pdfc.loc[~pdfc_padloc_mask, 'tmpid'].values]
-    df_pdfc.loc[~pdfc_padloc_mask, 'DS_ID'] = dfnfnr_sel_ids
+    padloc_sel_ids = [padloc_dict[i] for i in df_pdfc.loc[~pdfc_dfnfnr_mask, 'tmpid'].values]
+    df_pdfc.loc[~pdfc_dfnfnr_mask, 'DS_ID'] = padloc_sel_ids
+    dfnfnr_sel_ids = [df_dict[i] for i in df_pdfc.loc[pdfc_dfnfnr_mask, 'tmpid'].values]
+    df_pdfc.loc[pdfc_dfnfnr_mask, 'DS_ID'] = dfnfnr_sel_ids
 
     # --- Find redundant proteins
     prots_ids = {'Protein': [], 'DS_ID': []}
@@ -191,16 +193,16 @@ def make_combined_summary(
     ann_path,
     merged_table_path: Path,
     padloc_summary_path,
-    padloc_dupl_path,
+    padloc_redund_path,
     padloc_uniq_path,
     dfnfnr_summary_path,
-    dfnfnr_dupl_path,
+    dfnfnr_redund_path,
     dfnfnr_uniq_path,
     results_path: Path
 ) -> None:
     padloc_sel_ids = []
     dfnfnr_sel_ids = []
-    duplicated_ds = {'Accession': [], 'DS_ID': []}
+    redundant_ds = {'Accession': [], 'DS_ID': []}
     splitted_ds = {'Accession': [], 'DS_ID': []}
 
     results_path.mkdir(parents=True, exist_ok=True)
@@ -229,8 +231,8 @@ def make_combined_summary(
         splitted_ds['DS_ID'].extend(curr_splitted_ds_ids)
         splitted_ds['Accession'].extend([pdf_merged_table.stem] * len(curr_splitted_ds_ids))
 
-        duplicated_ds['DS_ID'].extend(curr_redund_ds_ids)
-        duplicated_ds['Accession'].extend([pdf_merged_table.stem] * len(curr_redund_ds_ids))
+        redundant_ds['DS_ID'].extend(curr_redund_ds_ids)
+        redundant_ds['Accession'].extend([pdf_merged_table.stem] * len(curr_redund_ds_ids))
 
     print('---Merged tables processing completed---')
 
@@ -244,17 +246,17 @@ def make_combined_summary(
     )
 
     # --- --- Add unique redundant defsys and save
-    df_padloc_dupl = pd.read_csv(padloc_dupl_path, sep='\t')
-    df_padloc_dupl = df_padloc_dupl.loc[df_padloc_dupl.DS_ID.isin(padloc_uniq_ds_ids)]
-    duplicated_ds['DS_ID'].extend(df_padloc_dupl.DS_ID.to_list())
-    duplicated_ds['Accession'].extend(df_padloc_dupl.Accession.to_list())
+    df_padloc_redund = pd.read_csv(padloc_redund_path, sep='\t')
+    df_padloc_redund = df_padloc_redund.loc[df_padloc_redund.DS_ID.isin(padloc_uniq_ds_ids)]
+    redundant_ds['DS_ID'].extend(df_padloc_redund.DS_ID.to_list())
+    redundant_ds['Accession'].extend(df_padloc_redund.Accession.to_list())
 
-    df_dfnfnr_dupl = pd.read_csv(dfnfnr_dupl_path, sep='\t')
-    df_dfnfnr_dupl = df_dfnfnr_dupl.loc[df_dfnfnr_dupl.DS_ID.isin(padloc_uniq_ds_ids)]
-    duplicated_ds['DS_ID'].extend(df_dfnfnr_dupl.DS_ID.to_list())
-    duplicated_ds['Accession'].extend(df_dfnfnr_dupl.Accession.to_list())
+    df_dfnfnr_redund = pd.read_csv(dfnfnr_redund_path, sep='\t')
+    df_dfnfnr_redund = df_dfnfnr_redund.loc[df_dfnfnr_redund.DS_ID.isin(padloc_uniq_ds_ids)]
+    redundant_ds['DS_ID'].extend(df_dfnfnr_redund.DS_ID.to_list())
+    redundant_ds['Accession'].extend(df_dfnfnr_redund.Accession.to_list())
 
-    pd.DataFrame(duplicated_ds).to_csv(
+    pd.DataFrame(redundant_ds).to_csv(
         results_path / 'Combined_redundant_defsys.tsv',
         sep='\t',
         index=False
@@ -267,6 +269,8 @@ def make_combined_summary(
         padloc_data = json.load(f)
     for ds_id in padloc_sel_ids:
         combined_summary[ds_id] = padloc_data[ds_id]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
 
     # --- --- Add DF to combined summary
     with open(dfnfnr_summary_path) as f:
@@ -277,6 +281,9 @@ def make_combined_summary(
     # --- --- Add unique DS ids
     for ds_id in padloc_uniq_ds_ids:
         combined_summary[ds_id] = padloc_data[ds_id]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
+
     for ds_id in dfnfnr_uniq_ds_ids:
         combined_summary[ds_id] = dfnfnr_data[ds_id]
 
@@ -289,13 +296,6 @@ def make_combined_summary(
 if __name__ == '__main__':
     args = parse_arguments()
 
-    make_combined_summary(args.input_ann_path,
-                          args.input_merged_table_path,
-                          args.input_padloc_summary_path,
-                          args.input_padloc_dupl_path,
-                          args.input_padloc_uniq_path,
-                          args.input_dfnfnr_summary_path,
-                          args.input_dfnfnr_dupl_path,
-                          args.input_dfnfnr_uniq_path,
-                          args.output_results_path
-                          )
+    make_combined_summary(args.input_ann_path, args.input_merged_table_path, args.input_padloc_summary_path,
+                          args.input_padloc_redund_path, args.input_padloc_uniq_path, args.input_dfnfnr_summary_path,
+                          args.input_dfnfnr_redund_path, args.input_dfnfnr_uniq_path, args.output_results_path)
