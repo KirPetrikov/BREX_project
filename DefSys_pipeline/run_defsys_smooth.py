@@ -6,8 +6,8 @@ import argparse
 import pandas as pd
 
 from pathlib import Path
-from process_padloc_data import process_padloc_data
-from process_dfnfnr_data import process_dfnfnr_data
+from process_padloc_data import process_padloc_data_smooth
+from process_dfnfnr_data import process_dfnfnr_data_smooth
 from merge_padloc_and_defensefinder import merge_padloc_and_defensefinder
 from make_combined_summary import make_combined_summary
 
@@ -103,7 +103,7 @@ def run_defsys_smooth(padloc,
                       pattern: str,
                       results_path):
 
-    print('\n >>> Run smooth DefSys pipeline <<<')
+    print('\n>>> Run smooth DefSys pipeline <<<')
     results_path = Path(results_path)
     results_path.mkdir(parents=True, exist_ok=True)
 
@@ -111,7 +111,7 @@ def run_defsys_smooth(padloc,
 
     padloc_results = results_path / 'Summary_Padloc'
     padloc_results.mkdir(parents=True, exist_ok=True)
-    process_padloc_data(
+    process_padloc_data_smooth(
         Path(padloc),
         Path(padloc_results)
     )
@@ -120,7 +120,7 @@ def run_defsys_smooth(padloc,
 
     dfnfnr_results = results_path / 'Summary_DefenseFinder'
     dfnfnr_results.mkdir(parents=True, exist_ok=True)
-    process_dfnfnr_data(
+    process_dfnfnr_data_smooth(
         dfnfnr,
         gff,
         pattern,

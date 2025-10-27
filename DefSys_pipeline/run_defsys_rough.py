@@ -148,7 +148,7 @@ def merge_annotations(
 
 def run_defsys_rough(samples_list, pattern, output_path):
 
-    print('\n >>> Run rough DefSys pipeline <<<')
+    print('\n>>> Run rough DefSys pipeline <<<')
 
     output_path.mkdir(parents=True, exist_ok=True)
 
