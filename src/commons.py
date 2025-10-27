@@ -1,10 +1,12 @@
-"""v0.2
+"""v0.4
 Scripts collection for import
 """
+
 import numpy as np
 import pandas as pd
 import re
 
+from io import StringIO
 from collections import defaultdict
 from itertools import combinations
 
@@ -100,43 +102,31 @@ def top_co_occurred(co_occurrence_mtx: np.ndarray | pd.DataFrame,
     return top_n_fin
 
 
-def find_dupl_defsys(df: pd.DataFrame) -> pd.DataFrame:
+def find_redundancy_defsys(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Select rows corresponding to DS where there is protein duplications
+    Finds redundancy of proteins annotation to DS:
+    when the same protein was annotated in different DS
 
     Params:
-    - dataframe: Padloc csv
+    - dataframe: unifyed DS-table
 
     Return:
-    - dataframe: only duplicated DS
+    - dataframe: only rows corresponding to DS where there are redundant proteins
     """
 
     dupl_prots = df.Protein.value_counts()[df.Protein.value_counts() > 1].index
     dupl_defsys_ids = df[df.Protein.isin(dupl_prots)].DS_ID.unique()
-    df_dupl = df[df.DS_ID.isin(dupl_defsys_ids)]
+    df_redund = df[df.DS_ID.isin(dupl_defsys_ids)]
 
-    return df_dupl
-
-
-def coords_selector(frame: pd.DataFrame):
-    """
-    Auxiliary function for groupby-agg in defsys_summary()
-    Selects the coordinates of the DS's region
-    """
-    if frame.name == 'Start':
-        return min(frame)
-    elif frame.name == 'End':
-        return max(frame)
-    else:
-        return frame.unique()[0]
+    return df_redund
 
 
 def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Create summary for defense systems
+    Create summary for defense systems from unifyed DS-table
 
     Params:
-    - dataframe: table of DFs' proteins.
+    - dataframe: unifyed DS-table.
                  Must contain cols:
                  ('DS_ID', 'Accession', 'Nucleotide', 'Protein', 'System', 'Start', 'End', 'Strand')
                  The strandness in each system must be uniform.
@@ -146,13 +136,24 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
                  Columns:
                  - 'Accession', 'Nucleotide', 'DS_ID', 'Strand': corr. values;
                  - 'Start', 'End': DS's region boundary coordinates;
-                 - 'DS_Prots': list, IDs of DS's proteins
+                 - 'DS_Prots': list, only numbers of proteins' IDs
                  - 'Have_inner': True/False
     """
 
+    def coords_selector(frame: pd.DataFrame) -> str:
+        """
+        Auxiliary function for groupby-agg
+        Selects boundary coordinates of the DS's region
+        """
+        if frame.name == 'Start':
+            return min(frame)
+        elif frame.name == 'End':
+            return max(frame)
+        else:
+            return frame.unique()[0]
+
     df_result = (
-        df.loc[:, ['DS_ID', 'Accession', 'Nucleotide', 'System', 'Start', 'End', 'Strand']]
-          .groupby('DS_ID')
+        df.groupby('DS_ID')
           .agg(coords_selector)
     )
 
@@ -161,7 +162,9 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[:, ['DS_ID', 'Protein']]
           .groupby('DS_ID')
           .agg(
-            lambda x: [int(i.split('_')[-1]) for i in x]
+            lambda x: [
+                int(i.split('_')[-1]) for i in x
+            ]
           )
     )
 
@@ -182,7 +185,7 @@ def select_target_dupl_defsys(df: pd.DataFrame, target_defsys: str, dupl_ready: 
     - dupl_ready: Set to True if input df contains not only duplicates
     """
     if not dupl_ready:
-        df = find_dupl_defsys(df)
+        df = find_redundancy_defsys(df)
 
     # Mask for proteins from target DS
     dupl_prots_from_target_defsys = (df.groupby('Protein')['DS_ID']
@@ -317,10 +320,11 @@ def parse_padloc_csv(path_to_csv, short: bool = True) -> pd.DataFrame:
         return df
 
 
-def make_unidir_genes_defsys(df: pd.DataFrame):
+def make_unidir_genes_defsys(df: pd.DataFrame) -> None:
     """
-    Modifies table by choosing uniform strandness/direction of genes within every DS.
-    By voting, or '+' in case of equality
+    Inplace modifies unifyed DS-table by choosing
+    uniform strandness/direction of genes within every DS.
+    By simple voting, or '+' in case of equality.
     """
 
     nonunidir_defsys_ids = (df.loc[:, ('Strand', 'DS_ID')]
@@ -393,5 +397,58 @@ def parse_prodigal_gff(path_to_gff,
         if with_nucl:
             df = df.astype({'Gene_ID': str})
             df.loc[:, 'Gene_ID'] = df.Chrom + '_' + df.Gene_ID
+
+    return df
+
+
+def parse_gff(path_to_gff,
+              add_id: str = '') -> pd.DataFrame:
+    """
+    Parse gff-file to pandas DataFrame.
+    Can add gene id if regex pattern is provided for
+    getting id from comment (return 0 if pattern does not match)
+    """
+    gff_cols_names = ('Nucleotide', 'Sourse', 'Feature', 'Start', 'End',
+                      'Score', 'Strand', 'Frame', 'Comment')
+    try:
+        df = pd.read_csv(path_to_gff,
+                         sep='\t',
+                         names=gff_cols_names,
+                         dtype={'Nucleotide': str, 'Sourse': str, 'Feature': str,
+                                'Start': int, 'End': int,
+                                'Strand': str, 'Frame': str, 'Comment': str},
+                         comment='#')
+    except ValueError:
+        # Handle with gff-files contained sequences
+        def read_head_as_df(filepath, separator):
+            buffer = StringIO()
+            with open(filepath) as f:
+                for line in f:
+                    if separator in line:
+                        break
+                    buffer.write(line)
+            buffer.seek(0)
+            return buffer
+
+        df = pd.read_csv(read_head_as_df(path_to_gff, '##FASTA'),
+                         sep='\t',
+                         names=gff_cols_names,
+                         dtype={'Nucleotide': str, 'Sourse': str, 'Feature': str,
+                                'Start': int, 'End': int,
+                                'Strand': str, 'Frame': str, 'Comment': str},
+                         comment='#'
+                         )
+
+    if add_id:
+        def get_protein_id(frame, pat):
+            try:
+                prot_id = re.search(pat, frame).group(1)
+                return prot_id
+            except AttributeError:
+                return 0
+
+        pattern = re.compile(add_id)
+
+        df['ID'] = df.Comment.apply(get_protein_id, args=(pattern,))
 
     return df
