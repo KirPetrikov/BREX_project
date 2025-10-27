@@ -143,13 +143,13 @@ def process_merged_table(
     pdfc_dfnfnr_mask = (df_pdfc.DF_System != 'N.A.').values
     # Tmp-ids for Padloc
     df_pdfc['tmpid'] = ''
-    df_pdfc.loc[~pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[pdfc_dfnfnr_mask].apply(
+    df_pdfc.loc[~pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[~pdfc_dfnfnr_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.Padloc_System_sub}',
         axis=1
     )
 
     # Tmp-ids for DF
-    df_pdfc.loc[pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[~pdfc_dfnfnr_mask].apply(
+    df_pdfc.loc[pdfc_dfnfnr_mask, 'tmpid'] = df_pdfc.loc[pdfc_dfnfnr_mask].apply(
         lambda x: f'{x.Proteins.split(";")[0]}%{x.DF_System_sub}',
         axis=1
     )
@@ -269,6 +269,8 @@ def make_combined_summary(
         padloc_data = json.load(f)
     for ds_id in padloc_sel_ids:
         combined_summary[ds_id] = padloc_data[ds_id]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
 
     # --- --- Add DF to combined summary
     with open(dfnfnr_summary_path) as f:
@@ -279,6 +281,9 @@ def make_combined_summary(
     # --- --- Add unique DS ids
     for ds_id in padloc_uniq_ds_ids:
         combined_summary[ds_id] = padloc_data[ds_id]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
+
     for ds_id in dfnfnr_uniq_ds_ids:
         combined_summary[ds_id] = dfnfnr_data[ds_id]
 
