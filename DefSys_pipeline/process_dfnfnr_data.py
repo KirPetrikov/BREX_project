@@ -1,4 +1,4 @@
-"""v0.2p
+"""v0.3
 Parse all given DefenseFinder results (genes tsv-files) to create:
 - defense & anti-defense systems json-summary
 - table with anti-defense systems, accessions and DS ids

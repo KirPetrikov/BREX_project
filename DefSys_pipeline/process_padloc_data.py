@@ -1,4 +1,4 @@
-"""v0.6p
+"""v0.7
 Parse all given Padloc results (csv-files) to create:
 - defense systems json-summary
 - table of Padloc proteins annotations
