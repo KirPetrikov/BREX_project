@@ -92,16 +92,22 @@ def parse_dfnfnr_genes(
     # Add coords for protein genes
     if path_to_gff:
         assert pattern, 'Pattern for protein id search in gff does not provided!'
+
         df_gff = parse_gff(path_to_gff, pattern).rename({'ID': 'Protein'}, axis=1)
         df_gff = df_gff.loc[df_gff.Protein != 0]
 
     if rough:
         df = df.rename({'replicon': 'Accession'}, axis=1)
         if path_to_gff:
+            assert pattern, 'Pattern for protein id search in gff does not provided!'
+
             df_gff['tmp_Nucleotide'] = df_gff.Comment.apply(lambda x: re.search(r'ID=(\w+)_\d+', x).group(1))
-            df_gff['tmp_num'] = df_gff.Nucleotide.apply(lambda x: x.split('_')[-1])
             df_gff.loc[:, 'Protein'] = df_gff.tmp_Nucleotide + '_' + df_gff.astype({'Protein': str}).Protein
-            df_gff.loc[:, 'Nucleotide'] = df_gff.tmp_Nucleotide + df_gff.tmp_num
+            df_gff.loc[:, 'Nucleotide'] = (
+                    df_gff.tmp_Nucleotide +
+                    '_' +
+                    df_gff.Nucleotide.apply(lambda x: x.split('_')[-1])
+            )
 
             df = df.merge(df_gff[['Nucleotide', 'Protein', 'Start', 'End', 'Strand']], on='Protein', how='left')
 
@@ -113,61 +119,10 @@ def parse_dfnfnr_genes(
 
             df = df.merge(df_gff[['Protein', 'Start', 'End', 'Strand']], on='Protein', how='left')
 
-    return df.drop(['tmp_ID'], axis=1)
-
-
-# def parse_dfnfnr_genes_rough(
-#         path_to_tsv: str | Path,
-#         path_to_gff: str | Path,
-#         pattern: str
-# ) -> pd.DataFrame:
-#     """
-#     Reads DefenseFinder genes tsv and create table in convinient form.
-#     Separate poteins with antidefense activity.
-#
-#     Adds columns:
-#     - 'DS_ID' with unique ID to prevent merging of DS with the same name
-#     - 'Accession' with assembly GenBank ID, gets from folder name
-#     If 'path_to_gff' specified adds genes coordinates:
-#     - 'Start', 'End', 'Strand'
-#     If 'rough_sample' specified rewrire proteins IDs in spesified manner
-#
-#     Params:
-#     - path_to_tsv
-#     - path_to_gff: path to Prodigal gff; if isn't specified - just skip
-#
-#     Return:
-#     - unifyed table for defense systems genes/proteins
-#     """
-#     df = pd.read_csv(path_to_tsv, sep='\t',
-#                      usecols=[0, 1, 2, 5, 22, 23, 24],
-#                      dtype={'replicon': str, 'hit_id': str, 'gene_name': str,
-#                             'sys_id': str, 'type': str, 'subtype': str, 'activity': str},
-#                      names=['Accession', 'Protein', 'Annotation', 'tmp_ID',
-#                             'System', 'System_sub', 'Activity'],
-#                      skiprows=1)
-#
-#     df = df.drop_duplicates()
-#
-#     # Create unique DS_IDs
-#     df['DS_ID'] = df.apply(
-#         lambda x: f'{x.System_sub}%{x.tmp_ID.split("_")[-1]}%{x.Accession}',
-#         axis=1
-#     )
-#
-#     # Add coords for protein genes
-#     df_gff = parse_gff(path_to_gff, pattern).rename({'ID': 'Protein'}, axis=1)
-#
-#     df_gff = df_gff.loc[df_gff.Protein != 0]
-#     df_gff = df_gff.astype({'Protein': str})
-#     df_gff['tmp_Nucleotide'] = df_gff.Comment.apply(lambda x: re.search(r'ID=(\w+)_\d+', x).group(1))
-#     df_gff['tmp_num'] = df_gff.Nucleotide.apply(lambda x: x.split('_')[-1])
-#     df_gff.loc[:, 'Protein'] = df_gff.tmp_Nucleotide + '_' + df_gff.Protein
-#     df_gff.loc[:, 'Nucleotide'] = df_gff.tmp_Nucleotide + df_gff.tmp_num
-#
-#     df = df.merge(df_gff[['Protein', 'Start', 'End', 'Strand', 'Nucleotide']], on='Protein', how='left')
-#
-#     return df.drop(['tmp_ID'], axis=1)
+    return df[
+        ['Accession', 'Nucleotide', 'DS_ID', 'Protein',
+         'Annotation', 'System', 'System_sub', 'Start', 'End', 'Strand', 'Activity']
+    ]
 
 
 def process_single_dfnfnr_table(
@@ -341,7 +296,10 @@ def process_dfnfnr_data_rough(
         json.dump(summary_defsys_all, f, indent=4)
 
 
-if __name__ == '__main__':
-    args = parse_arguments()
-
-    process_dfnfnr_data_smooth(Path(args.input_data_path), Path(args.input_gff_path), Path(args.output_path), )
+# TODO
+# if __name__ == '__main__':
+#     args = parse_arguments()
+#
+#     process_dfnfnr_data_smooth(Path(args.input_data_path),
+#                                Path(args.input_gff_path),
+#                                Path(args.output_path))

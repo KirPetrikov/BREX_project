@@ -99,9 +99,11 @@ def parse_padloc_csv_rough(path_to_csv: str | Path,
 
     df['Accession'] = sample_id
     df['DS_ID'] = df['System'] + '%' + df['SysNo'] + '%' + df['Accession']
-    df['tmp_Nucleotide'] = df.Protein.apply(lambda x: x.split('_')[0])
-    df['tmp_num'] = df.Nucleotide.apply(lambda x: x.split('_')[-1])
-    df.loc[:, 'Nucleotide'] = df.tmp_Nucleotide + df.tmp_num
+    df.loc[:, 'Nucleotide'] = (
+        df.Protein.apply(lambda x: x.split('_')[0]) +
+        '_' +
+        df.Nucleotide.apply(lambda x: x.split('_')[-1])
+    )
 
     return df[['Accession', 'Nucleotide', 'DS_ID', 'Protein',
                'Annotation', 'System', 'Start', 'End', 'Strand']]
