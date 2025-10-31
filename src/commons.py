@@ -1,4 +1,4 @@
-"""v0.4
+"""v0.4a
 Scripts collection for import
 """
 
@@ -175,7 +175,7 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    return df_result
+    return df_result.drop(['Protein', 'Annotation'], axis=1)
 
 
 def select_target_dupl_defsys(df: pd.DataFrame, target_defsys: str, dupl_ready: bool = False) -> pd.DataFrame:
