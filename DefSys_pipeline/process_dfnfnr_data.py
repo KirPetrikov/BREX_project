@@ -1,4 +1,4 @@
-"""v0.3
+"""v0.3a
 Parse all given DefenseFinder results (genes tsv-files) to create:
 - defense & anti-defense systems json-summary
 - table with anti-defense systems, accessions and DS ids
@@ -120,7 +120,7 @@ def parse_dfnfnr_genes(
             df = df.merge(df_gff[['Protein', 'Start', 'End', 'Strand']], on='Protein', how='left')
 
     return df[
-        ['Accession', 'Nucleotide', 'DS_ID', 'Protein',
+        ['DS_ID', 'Accession', 'Nucleotide', 'Protein',
          'Annotation', 'System', 'System_sub', 'Start', 'End', 'Strand', 'Activity']
     ]
 
@@ -164,7 +164,7 @@ def process_single_dfnfnr_table(
 
     defsys_summary = create_defsys_summary(df_defsys)
 
-    cols_order = ['Accession', 'Nucleotide', 'Protein', 'Annotation', 'System', 'System_sub',
+    cols_order = ['Accession', 'Nucleotide', 'System', 'System_sub',
                   'Start', 'End', 'Strand', 'DS_Prots', 'Have_inner']
     return defsys_summary[cols_order], df_proteins, df_rdn, df_anti
 
@@ -201,6 +201,7 @@ def process_dfnfnr_data_smooth(
         antidefense_all.append(anti_curr)
 
         # --- Write current results ---
+        # TODO move mkdir to outer scope
         curr_accession_result_path = results_path / f'By_Accessions/{sample_id}'
         curr_accession_result_path.mkdir(parents=True, exist_ok=True)
         summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json', orient='index')

@@ -1,4 +1,4 @@
-"""v0.7
+"""v0.7a
 Parse all given Padloc results (csv-files) to create:
 - defense systems json-summary
 - table of Padloc proteins annotations
@@ -68,6 +68,7 @@ def parse_padloc_csv(path_to_csv: str | Path, unifyed: bool = True) -> pd.DataFr
     df['DS_ID'] = df['System'] + '%' + df['SysNo'] + '%' + df['Nucleotide']
     df['Accession'] = Path(path_to_csv).parent.name
 
+    # TODO remove
     if unifyed:
         return df[
             ['DS_ID', 'Accession', 'Nucleotide', 'Protein', 'Annotation', 'System', 'Start', 'End', 'Strand']
@@ -173,6 +174,7 @@ def process_padloc_data_rough(
                 summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
                 # --- Write current results ---
+                # TODO move mkdir to outer scope
                 curr_accession_result_path = Path(results_path) / 'By_Accessions'
                 curr_accession_result_path.mkdir(parents=True, exist_ok=True)
                 summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',

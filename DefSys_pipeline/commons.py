@@ -1,4 +1,4 @@
-"""v0.3p
+"""v0.4
 Common scripts for pipeline
 """
 import pandas as pd
@@ -109,7 +109,7 @@ def create_defsys_summary(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    return df_result
+    return df_result.drop(['Protein', 'Annotation'], axis=1)
 
 
 def parse_gff(path_to_gff,
