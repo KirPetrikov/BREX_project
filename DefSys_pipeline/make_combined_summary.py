@@ -1,20 +1,3 @@
-"""v0.4
-Create combined summary by choosing unique DS id.
-In case of ambiguity priority choice is DefenseFinder variant.
-Considers DSs, which are joined in combined output table ('DS1/DS2'), and just selects first.
-Checks protein redundancy.
-Also takes lists of accessios uniquely processed by each tool, and adds them to combined summary.
-
-Takes , mergeded protein annotations table, lists of Padloc and DF unique accessions,
-lists of Padloc and DF redundant defsystems, 
-unified json-summaries of Padloc and DF, tables with their merged results.
-
-Output:
-- "Combined_summary.json"
-- "Combined_redundant_defsys.tsv"
-- "Joined_defsys_from_merged_results.tsv"
-"""
-import argparse
 import json
 import pandas as pd
 
@@ -22,44 +5,11 @@ from pathlib import Path
 from commons import find_redundancy_defsys
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description='Makes combined summary from Padloc and DefenseFinder merged tables.'
-    )
-
-    parser.add_argument('-a', '--input_ann_path', type=Path, required=True,
-                        help='Path to merged annotation file')
-    parser.add_argument('-t', '--input_merged_table_path', type=Path, required=True,
-                        help='Path to combined Padloc-DefenceFinder tables')
-
-    parser.add_argument('-p', '--input_padloc_summary_path', type=Path, required=True,
-                        help='Path to Padloc summary JSON file')
-    parser.add_argument('-l', '--input_padloc_redund_path', type=Path, required=True,
-                        help='Path to Padloc redundant systems file')
-    parser.add_argument('-c', '--input_padloc_uniq_path', type=Path, required=True,
-                        help='Path to unique Padloc accessions file')
-
-    parser.add_argument('-d', '--input_dfnfnr_summary_path', type=Path, required=True,
-                        help='Path to DefenseFinder summary JSON file')
-    parser.add_argument('-f', '--input_dfnfnr_redund_path', type=Path, required=True,
-                        help='Path to DefenseFinder redundant systems file')
-    parser.add_argument('-n', '--input_dfnfnr_uniq_path', type=str, required=True,
-                        help='Path to unique DefenseFinder accessions file')
-
-    parser.add_argument('-o', '--output_results_path', type=Path, required=True,
-                        help='Output results directory')
-
-    return parser.parse_args()
-
-
 def make_ids_dicts_and_unq(
     ann_path,
     padloc_uniq_path,
     dfnfnr_uniq_path
 ) -> tuple[dict, dict, dict, dict]:
-
-    print('---Tmp-ID dictionary making---')
-
     # --- Add unique DS_ID for each DS/row in ann-table
     df_ann = (
         pd.read_csv(
@@ -214,7 +164,7 @@ def make_combined_summary(
     )
 
     # --- Select unique DS_ID from all combined tables
-    print('---Processing merged tables---')
+    print('>>> Processing merged tables')
     for pdf_merged_table in merged_table_path.iterdir():
         print(f'---Processing {pdf_merged_table.name}---')
 
@@ -234,7 +184,7 @@ def make_combined_summary(
         redundant_ds['DS_ID'].extend(curr_redund_ds_ids)
         redundant_ds['Accession'].extend([pdf_merged_table.stem] * len(curr_redund_ds_ids))
 
-    print('---Merged tables processing completed---')
+    print('---Merged tables processing is complet---')
 
     results_path.mkdir(parents=True, exist_ok=True)
 
@@ -270,7 +220,8 @@ def make_combined_summary(
     for ds_id in padloc_sel_ids:
         combined_summary[ds_id] = padloc_data[ds_id]
         combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
-        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['Activity'] = 'miss'
 
     # --- --- Add DF to combined summary
     with open(dfnfnr_summary_path) as f:
@@ -283,6 +234,7 @@ def make_combined_summary(
         combined_summary[ds_id] = padloc_data[ds_id]
         combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
         combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
+        combined_summary[ds_id]['Activity'] = 'miss'
 
     for ds_id in dfnfnr_uniq_ds_ids:
         combined_summary[ds_id] = dfnfnr_data[ds_id]
@@ -291,11 +243,3 @@ def make_combined_summary(
         json.dump(combined_summary, f, indent=4)
 
     print('---Making combined summary is complet---')
-
-
-if __name__ == '__main__':
-    args = parse_arguments()
-
-    make_combined_summary(args.input_ann_path, args.input_merged_table_path, args.input_padloc_summary_path,
-                          args.input_padloc_redund_path, args.input_padloc_uniq_path, args.input_dfnfnr_summary_path,
-                          args.input_dfnfnr_redund_path, args.input_dfnfnr_uniq_path, args.output_results_path)
