@@ -1,4 +1,4 @@
-"""v0.2
+"""v0.2b
 WARNING: Check single tables parsing implementation in
 
 # TODO Update docstrings
@@ -30,7 +30,9 @@ def parse_arguments():
         'for each tool and summary which combine both results.'
     )
     # TODO Add description
-    parser.add_argument('-s', '--samples_list', type=Path,
+    parser.add_argument('-p', '--padloc_list', type=Path,
+                        help='___')
+    parser.add_argument('-d', '--defensefinder_list', type=Path,
                         help='___')
     parser.add_argument('-o', '--output_path', type=Path,
                         help='Path to the results folder. Will be created if it does not exist')
@@ -38,12 +40,12 @@ def parse_arguments():
 
 
 def check_input_files_exist(input_samples_file):
+    # TODO rewrite for new input
     print('\n>>> Check input files list')
 
     with open(input_samples_file, newline='') as f:
         reader = csv.reader(f)
         for row in reader:
-            # TODO flag change
             flag = False
             for file_name in Path(row[2]).iterdir():
                 if str(file_name).endswith('genes.tsv'):
@@ -59,24 +61,18 @@ def check_input_files_exist(input_samples_file):
             assert Path(row[3]).exists(), f'Missed gff-file in {row[1]}'
 
 
-def parse_input_paths_list(input_samples_file, output):
-    padloc = []
-    dfnfnr = []
-    merging_list = []
-    with open(input_samples_file, newline='') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            padloc.append((row[0], row[1]))
-            dfnfnr.append((row[0], row[2], row[3]))
-            merging_list.append((row[0],
-                                 row[2],
-                                 row[1]))
+def make_list_for_merging(input_samples_file, output):
+    samples = []
+    with open(input_samples_file, newline='') as file:
+        reader = csv.reader(file)
+        for row1, row2, row3 in reader:
+            samples.append(
+                f'{row1},{Path(row2).parents[0]},{Path(row3).parents[0]}\n'
+            )
 
-    with open(output / 'samples_for_merging.csv', mode='w') as f:
-        for line in merging_list:
-            f.write(f'{",".join(line)}\n')
-
-    return padloc, dfnfnr
+    with open(output / 'samples_for_merging.csv', mode='w') as file:
+        for line in samples:
+            file.write(line)
 
 
 def combine_annotations(
@@ -150,13 +146,15 @@ def combine_annotations(
     return common_accessions
 
 
-def run_defsys_combining(samples_list, output_path):
+def run_defsys_combining(
+        padloc_samples: str | Path,
+        dfnfnr_samples: str | Path,
+        output_path: str | Path
+):
 
     print('\n>>> Run DefSys merging pipeline')
 
     output_path.mkdir(parents=True, exist_ok=True)
-
-    padloc_samples, dfnfnr_samples = parse_input_paths_list(samples_list, output_path)
 
     print('\n>>> Padloc processing')
     padloc_results = Path(output_path) / 'Summary_Padloc'
@@ -174,6 +172,7 @@ def run_defsys_combining(samples_list, output_path):
                             output_path)
 
     print('\n>>> Merge Padloc and DefenseFinder defense systems')
+    make_list_for_merging(dfnfnr_samples, output_path)
     merge_results = output_path / 'Merged_defence_systems'
     merge_results.mkdir(parents=True, exist_ok=True)
     merge_padloc_and_defensefinder(
@@ -200,6 +199,6 @@ def run_defsys_combining(samples_list, output_path):
 if __name__ == '__main__':
     args = parse_arguments()
 
-    check_input_files_exist(args.samples_list)
+    # check_input_files_exist(args.samples_list)
 
-    run_defsys_combining(args.samples_list, args.output_path)
+    run_defsys_combining(args.padloc_list, args.defensefinder_list, args.output_path)

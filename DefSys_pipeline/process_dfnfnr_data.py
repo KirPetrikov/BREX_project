@@ -1,3 +1,4 @@
+import csv
 import json
 import pandas as pd
 
@@ -15,7 +16,7 @@ pd.options.mode.copy_on_write = True
 
 
 def process_dfnfnr_data(
-        input_samples: list[tuple],
+        input_samples: str | Path,
         results_path: str | Path
 ) -> None:
     """
@@ -38,32 +39,32 @@ def process_dfnfnr_data(
     cols_order = ['Accession', 'Nucleotide', 'System', 'System_sub',
                   'Start', 'End', 'Strand', 'DS_Prots', 'Have_inner', 'Activity']
 
-    for sample_id, dfnfnr_dir, gff_file in input_samples:
-        for file_name in Path(dfnfnr_dir).iterdir():
-            if str(file_name).endswith('genes.tsv'):
-                print(f'---Processing {sample_id}---')
+    with open(input_samples, newline='') as file:
+        reader = csv.reader(file)
+        for sample_id, file_name, gff_file in reader:
+            print(f'---Processing {sample_id}---')
 
-                df_curr = parse_single_dfnfnr_table(file_name, gff_file, sample_id)
+            df_curr = parse_single_dfnfnr_table(file_name, gff_file, sample_id)
 
-                antidefense_all.append(
-                    df_curr.loc[df_curr.Activity == 'Antidefense', ['Accession', 'DS_ID']]
-                )
+            antidefense_all.append(
+                df_curr.loc[df_curr.Activity == 'Antidefense', ['Accession', 'DS_ID']]
+            )
 
-                redundancy_defsys_all.append(
-                    find_redundancy_defsys(df_curr)
-                )
+            redundancy_defsys_all.append(
+                find_redundancy_defsys(df_curr)
+            )
 
-                protein_annotations_all.append(
-                    df_curr[['DS_ID', 'Accession', 'Nucleotide', 'Protein',
-                             'Annotation', 'System', 'System_sub']]
-                )
+            protein_annotations_all.append(
+                df_curr[['DS_ID', 'Accession', 'Nucleotide', 'Protein',
+                         'Annotation', 'System', 'System_sub']]
+            )
 
-                make_unidir_genes_defsys(df_curr)
-                summary_curr = create_defsys_summary(df_curr)[cols_order]
-                summary_defsys_all.update(summary_curr.to_dict(orient='index'))
+            make_unidir_genes_defsys(df_curr)
+            summary_curr = create_defsys_summary(df_curr)[cols_order]
+            summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
-                # Write current results
-                summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json', orient='index')
+            # Write current results
+            summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json', orient='index')
 
     # Write results
     if redundancy_defsys_all:

@@ -1,3 +1,4 @@
+import csv
 import json
 import pandas as pd
 
@@ -15,8 +16,8 @@ pd.options.mode.copy_on_write = True
 
 
 def process_padloc_data(
-        input_samples: list[tuple],
-        results_path
+        input_samples: str | Path,
+        results_path: str | Path
 ) -> None:
     """
 
@@ -36,29 +37,29 @@ def process_padloc_data(
 
     columns_order = ['Accession', 'Nucleotide', 'System', 'Start', 'End', 'Strand', 'DS_Prots', 'Have_inner']
 
-    for sample_id, padloc_dir in input_samples:
-        for file_name in Path(padloc_dir).iterdir():
-            if str(file_name).endswith('padloc.csv'):
-                print(f'---Processing {sample_id}---')
+    with open(input_samples, newline='') as file:
+        reader = csv.reader(file)
+        for sample_id, file_name in reader:
+            print(f'---Processing {sample_id}---')
 
-                df_curr = parse_single_padloc_table(file_name, sample_id)
+            df_curr = parse_single_padloc_table(file_name, sample_id)
 
-                redundancy_defsys_all.append(
-                    find_redundancy_defsys(df_curr)
-                )
+            redundancy_defsys_all.append(
+                find_redundancy_defsys(df_curr)
+            )
 
-                protein_annotations_all.append(
-                    df_curr[['DS_ID', 'Accession', 'Nucleotide', 'Protein', 'Annotation', 'System']]
-                )
+            protein_annotations_all.append(
+                df_curr[['DS_ID', 'Accession', 'Nucleotide', 'Protein', 'Annotation', 'System']]
+            )
 
-                make_unidir_genes_defsys(df_curr)
-                summary_curr = create_defsys_summary(df_curr)[columns_order]
-                summary_defsys_all.update(summary_curr.to_dict(orient='index'))
+            make_unidir_genes_defsys(df_curr)
+            summary_curr = create_defsys_summary(df_curr)[columns_order]
+            summary_defsys_all.update(summary_curr.to_dict(orient='index'))
 
-                # Write current results
-                summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
-                                     orient='index',
-                                     indent=4)
+            # Write current results
+            summary_curr.to_json(curr_accession_result_path / f'{sample_id}_summary.json',
+                                 orient='index',
+                                 indent=4)
 
     # Write full results
     if redundancy_defsys_all:
