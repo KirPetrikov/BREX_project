@@ -5,7 +5,11 @@ from pathlib import Path
 from commons import (make_unidir_genes_defsys,
                      find_redundancy_defsys,
                      create_defsys_summary)
-from parse_single_tables import parse_single_padloc_table
+
+try:
+    from parse_single_tables import parse_single_padloc_table
+except ImportError as e:
+    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemmented!')
 
 pd.options.mode.copy_on_write = True
 

@@ -2,10 +2,14 @@ import json
 import pandas as pd
 
 from pathlib import Path
-from parse_single_tables import parse_single_dfnfnr_table
 from commons import (make_unidir_genes_defsys,
                      find_redundancy_defsys,
                      create_defsys_summary)
+
+try:
+    from parse_single_tables import parse_single_dfnfnr_table
+except ImportError as e:
+    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemmented!')
 
 pd.options.mode.copy_on_write = True
 
@@ -39,7 +43,7 @@ def process_dfnfnr_data(
             if str(file_name).endswith('genes.tsv'):
                 print(f'---Processing {sample_id}---')
 
-                df_curr = parse_single_dfnfnr_table(file_name, gff_file)
+                df_curr = parse_single_dfnfnr_table(file_name, gff_file, sample_id)
 
                 antidefense_all.append(
                     df_curr.loc[df_curr.Activity == 'Antidefense', ['Accession', 'DS_ID']]
@@ -51,7 +55,7 @@ def process_dfnfnr_data(
 
                 protein_annotations_all.append(
                     df_curr[['DS_ID', 'Accession', 'Nucleotide', 'Protein',
-                        'Annotation', 'System', 'System_sub']]
+                             'Annotation', 'System', 'System_sub']]
                 )
 
                 make_unidir_genes_defsys(df_curr)

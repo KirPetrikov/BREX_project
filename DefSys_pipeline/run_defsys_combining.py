@@ -1,5 +1,5 @@
 """v0.2
-WARNING: Check single tables implementation
+WARNING: Check single tables parsing implementation
 
 # TODO Update docstrings
 
@@ -17,6 +17,11 @@ from merge_padloc_and_defensefinder import merge_padloc_and_defensefinder
 from make_combined_summary import make_combined_summary
 
 pd.options.mode.copy_on_write = True
+
+try:
+    from parse_single_tables import parse_single_dfnfnr_table, parse_single_padloc_table
+except ImportError as e:
+    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemmented!')
 
 
 def parse_arguments():
@@ -189,7 +194,7 @@ def run_defsys_combining(samples_list, output_path):
         output_path
     )
 
-    print("\nThat's all")
+    print("\n--- That's all")
 
 
 if __name__ == '__main__':

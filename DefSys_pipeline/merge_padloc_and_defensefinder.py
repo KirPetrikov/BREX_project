@@ -50,35 +50,6 @@ def parse_padloc_and_defensefinder_output(accession,
     combine_df_padloc_output(accession, padloc_db_dict, df_db_dict, output_dir, warning_file, conflict_winner)
 
 
-# def load_reference_file(ref_file):
-#     # Load file with all the name differences between PADLOC and Defence Finder
-#     with open(ref_file) as ref_list_file:
-#         ref_list = csv.reader(ref_list_file)
-#         start = True
-#         shared_systems = []  # list with systems both software look for
-#         ref_dict = {}        # dictionary with all reference values to equalise the systems
-#         for line in ref_list:
-#             if not start:
-#                 if "" not in line:
-#                     shared_systems.append(line[0])
-#                 if line[1] != "":
-#                     if "/" not in line[1]:  # multiple names
-#                         ref_dict[line[1]] = line[0]
-#                     else:
-#                         names = line[1].split("/")
-#                         for name in names:
-#                             ref_dict[name] = line[0]
-#                 if line[2] != "":
-#                     if "/" not in line[2]:  # multiple names
-#                         ref_dict[line[2]] = line[0]
-#                     else:
-#                         names = line[2].split("/")
-#                         for name in names:
-#                             ref_dict[name] = line[0]
-#             start = False
-#     return ref_dict
-
-
 def parse_padloc(accession, padloc_dir, ref_dict, pl_err):
     # parse PADLOC
 

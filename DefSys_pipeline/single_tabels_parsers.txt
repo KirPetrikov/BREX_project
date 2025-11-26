@@ -24,7 +24,7 @@ def parse_single_dfnfnr_table(
 
     df = df.drop_duplicates()
 
-    # Read gff to add coords and contig numbers
+    # Parse gff to add coords and contig numbers
     df_gff = parse_gff(path_to_gff, r'ID=\w+_(\d+)').rename({'ID': 'Protein'}, axis=1)
     df_gff = df_gff.loc[df_gff.Protein != 0]
 

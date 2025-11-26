@@ -1,4 +1,7 @@
 import json
+import os
+import sys
+
 import pandas as pd
 
 from pathlib import Path
@@ -163,7 +166,7 @@ def make_combined_summary(
         dfnfnr_uniq_path
     )
 
-    # --- Select unique DS_ID from all combined tables
+    # Select final DS_ID from merged tables to add in final combined summary
     print('>>> Processing merged tables')
     for pdf_merged_table in merged_table_path.iterdir():
         print(f'---Processing {pdf_merged_table.name}---')
@@ -184,18 +187,69 @@ def make_combined_summary(
         redundant_ds['DS_ID'].extend(curr_redund_ds_ids)
         redundant_ds['Accession'].extend([pdf_merged_table.stem] * len(curr_redund_ds_ids))
 
-    print('---Merged tables processing is complet---')
-
     results_path.mkdir(parents=True, exist_ok=True)
 
-    # --- --- Save joined/splitted defsys
+    print('>>> Add DS to final combined summary')
+    combined_summary = {}
+
+    ref_file = Path(os.path.dirname(sys.argv[0]), 'immune_system_list_reference.json')
+    with open(ref_file) as f:
+        ref_dict = json.load(f)
+
+    # Make final summary
+    # --- Add Padloc DSs to combined summary
+    with open(padloc_summary_path) as f:
+        padloc_data = json.load(f)
+    for ds_id in padloc_sel_ids:
+        combined_summary[ds_id] = padloc_data[ds_id]
+        # Unify DS names
+        # Padloc DS names need splittitg
+        old_sys_name: str = combined_summary[ds_id]['System'].split('_')[0]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System'].replace(
+            old_sys_name, ref_dict[old_sys_name]
+        )
+        combined_summary[ds_id]['System'] = ref_dict[old_sys_name]
+        combined_summary[ds_id]['Activity'] = 'miss'
+
+    # --- Add DF to combined summary
+
+    print('\n\n')
+
+    with open(dfnfnr_summary_path) as f:
+        dfnfnr_data = json.load(f)
+    for ds_id in dfnfnr_sel_ids:
+        combined_summary[ds_id] = dfnfnr_data[ds_id]
+        # Unify DS names
+        # DFs DS names do not need splitting
+        old_sys_name: str = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System_sub'].replace(
+            old_sys_name, ref_dict[old_sys_name]
+        )
+        combined_summary[ds_id]['System'] = ref_dict[old_sys_name]
+
+    # --- --- Add unique DS ids
+    for ds_id in padloc_uniq_ds_ids:
+        combined_summary[ds_id] = padloc_data[ds_id]
+        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
+        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
+        combined_summary[ds_id]['Activity'] = 'miss'
+
+    for ds_id in dfnfnr_uniq_ds_ids:
+        combined_summary[ds_id] = dfnfnr_data[ds_id]
+
+    # Save results
+    # --- Save combined summary
+    with open(results_path / 'Combined_summary.json', mode='w') as f:
+        json.dump(combined_summary, f, indent=4)
+
+    # --- Save joined/splitted defsys
     pd.DataFrame(splitted_ds).to_csv(
         results_path / 'Joined_defsys_from_merged_results.tsv',
         sep='\t',
         index=False
     )
 
-    # --- --- Add unique redundant defsys and save
+    # --- Add unique redundant defsys and save
     df_padloc_redund = pd.read_csv(padloc_redund_path, sep='\t')
     df_padloc_redund = df_padloc_redund.loc[df_padloc_redund.DS_ID.isin(padloc_uniq_ds_ids)]
     redundant_ds['DS_ID'].extend(df_padloc_redund.DS_ID.to_list())
@@ -212,34 +266,4 @@ def make_combined_summary(
         index=False
     )
 
-    combined_summary = {}
-
-    # --- --- Add Padloc to combined summary
-    with open(padloc_summary_path) as f:
-        padloc_data = json.load(f)
-    for ds_id in padloc_sel_ids:
-        combined_summary[ds_id] = padloc_data[ds_id]
-        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
-        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
-        combined_summary[ds_id]['Activity'] = 'miss'
-
-    # --- --- Add DF to combined summary
-    with open(dfnfnr_summary_path) as f:
-        dfnfnr_data = json.load(f)
-    for ds_id in dfnfnr_sel_ids:
-        combined_summary[ds_id] = dfnfnr_data[ds_id]
-
-    # --- --- Add unique DS ids
-    for ds_id in padloc_uniq_ds_ids:
-        combined_summary[ds_id] = padloc_data[ds_id]
-        combined_summary[ds_id]['System_sub'] = combined_summary[ds_id]['System']
-        combined_summary[ds_id]['System'] = combined_summary[ds_id]['System_sub'].split('_')[0]
-        combined_summary[ds_id]['Activity'] = 'miss'
-
-    for ds_id in dfnfnr_uniq_ds_ids:
-        combined_summary[ds_id] = dfnfnr_data[ds_id]
-
-    with open(results_path / 'Combined_summary.json', mode='w') as f:
-        json.dump(combined_summary, f, indent=4)
-
-    print('---Making combined summary is complet---')
+    print('--- Making combined summary is complet')

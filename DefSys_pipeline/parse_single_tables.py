@@ -1,81 +1,34 @@
 """
 These functions must be implemented to keep data consistency.
 
-The formatting of output tables should be:
+The formatting of output tables should be pandas DataFrame with columns:
 
-TODO Add description
+'Accession': str - Sample identifier for a single organism (e.g., GenBank accession number or MAG number)
+'Nucleotide': str - Specific nucleotide/contig identifier; each must be unique among all samples
+'System': str - Defense system name
+'System_sub': str [Only for DefenseFinder] - Defense system subtype name
+'Protein': str - Gene/protein identifier; each must be unique, of the form '<Nucleotide identifier>_<number>'
+'Start': int - gene 5'-coordinate
+'End': int - gene 3'-coordinate
+'Strand': str - Chain identifier; must be '+'/'-'
+'Activity': str [Only for DefenseFinder] - Protection type; must be 'Defense'/'Antidefense'
 """
-import re
-import pandas as pd
 
-from pathlib import Path
-from commons import parse_gff
-
-pd.options.mode.copy_on_write = True
-
-
-def parse_single_dfnfnr_table(
-        path_to_tsv: str | Path,
-        path_to_gff: str | Path
-) -> pd.DataFrame:
-    df = pd.read_csv(path_to_tsv,
-                     sep='\t',
-                     usecols=[0, 1, 2, 5, 22, 23, 24],
-                     dtype={'replicon': str, 'hit_id': str, 'gene_name': str,
-                            'sys_id': str, 'type': str, 'subtype': str, 'activity': str},
-                     names=['Accession', 'Protein', 'Annotation', 'tmp_ID',
-                            'System', 'System_sub', 'Activity'],
-                     skiprows=1)
-
-    df = df.drop_duplicates()
-
-    # Read gff to add coords and contig numbers
-    df_gff = parse_gff(path_to_gff, r'ID=\w+_(\d+)').rename({'ID': 'Protein'}, axis=1)
-    df_gff = df_gff.loc[df_gff.Protein != 0]
-
-    df_gff['tmp_Nucleotide'] = df_gff.Comment.apply(lambda x: re.search(r'ID=(\w+)_\d+', x).group(1))
-    df_gff.loc[:, 'Protein'] = df_gff.tmp_Nucleotide + '_' + df_gff.astype({'Protein': str}).Protein
-    df_gff.loc[:, 'Nucleotide'] = (
-            df_gff.tmp_Nucleotide +
-            '_' +
-            df_gff.Nucleotide.apply(lambda x: x.split('_')[-1])
-    )
-
-    df = df.merge(df_gff[['Nucleotide', 'Protein', 'Start', 'End', 'Strand']], on='Protein', how='left')
-
-    # Create unique DS_IDs
-    df['DS_ID'] = df.apply(
-        lambda x: f'{x.System_sub}%{x.tmp_ID.split("_")[-1]}%{x.Nucleotide}',
-        axis=1
-    )
-
-    return df.drop('tmp_ID', axis=1)
-
-
-def parse_single_padloc_table(
-        path_to_csv: str | Path,
-        sample_id: str
-) -> pd.DataFrame:
-    df = pd.read_csv(path_to_csv,
-                     names=['SysNo', 'Nucleotide', 'System', 'Protein',
-                            'Annotation', 'Start', 'End', 'Strand',],
-                     index_col=None,
-                     dtype={'SysNo': str, 'Nucleotide': str, 'System': str, 'Protein': str,
-                            'Annotation': str, 'Start': int, 'End': int, 'Strand': str},
-                     usecols=[0, 1, 2, 3, 6, 11, 12, 13],
-                     skiprows=1
-                     )
-
-    df['Accession'] = sample_id
-
-    # Add Unique nucleotide ids considering contig numbers
-    df.loc[:, 'Nucleotide'] = (
-        df.Protein.apply(lambda x: x.split('_')[0]) +
-        '_' +
-        df.Nucleotide.apply(lambda x: x.split('_')[-1])
-    )
-
-    # Add unique DS IDs
-    df['DS_ID'] = df['System'] + '%' + df['SysNo'] + '%' + df['Nucleotide']
-
-    return df.drop('SysNo', axis=1)
+# def parse_single_dfnfnr_table(
+#         path_to_tsv: str | Path,
+#         path_to_gff: str | Path,
+#         sample_id: str
+# ) -> pd.DataFrame:
+#
+#     pass
+#
+#     return ...
+#
+# def parse_single_padloc_table(
+#         path_to_csv: str | Path,
+#         sample_id: str
+# ) -> pd.DataFrame:
+#
+#     pass
+#
+#     return ...
