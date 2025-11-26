@@ -212,9 +212,6 @@ def make_combined_summary(
         combined_summary[ds_id]['Activity'] = 'miss'
 
     # --- Add DF to combined summary
-
-    print('\n\n')
-
     with open(dfnfnr_summary_path) as f:
         dfnfnr_data = json.load(f)
     for ds_id in dfnfnr_sel_ids:

@@ -1,10 +1,10 @@
 """v0.2
-WARNING: Check single tables parsing implementation
+WARNING: Check single tables parsing implementation in
 
 # TODO Update docstrings
 
-Processed Padloc and DefenseFinder data to make summaries
-for each tool and summary which combine both results
+Processed Padloc and DefenseFinder data to make summaries for each tool
+and summary which combine both results
 """
 import argparse
 import csv
@@ -21,7 +21,7 @@ pd.options.mode.copy_on_write = True
 try:
     from parse_single_tables import parse_single_dfnfnr_table, parse_single_padloc_table
 except ImportError as e:
-    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemmented!')
+    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemented!')
 
 
 def parse_arguments():
@@ -38,7 +38,7 @@ def parse_arguments():
 
 
 def check_input_files_exist(input_samples_file):
-    print('\n >>> Check input files list')
+    print('\n>>> Check input files list')
 
     with open(input_samples_file, newline='') as f:
         reader = csv.reader(f)

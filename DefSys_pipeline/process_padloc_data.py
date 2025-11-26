@@ -9,7 +9,7 @@ from commons import (make_unidir_genes_defsys,
 try:
     from parse_single_tables import parse_single_padloc_table
 except ImportError as e:
-    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemmented!')
+    raise ImportError(f'{e}\nFunctions for parsing single tables must be implemented!')
 
 pd.options.mode.copy_on_write = True
 
