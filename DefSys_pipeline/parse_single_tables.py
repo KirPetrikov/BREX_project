@@ -3,7 +3,7 @@ These functions must be implemented to keep data consistency.
 
 Input arguments of functions must be:
 For 'parse_single_dfnfnr_table':
-- path to DefenseFindef genes tsv-file
+- path to DefenseFinder genes tsv-file
 - path to gff-file for getting genes coordinates
 - sample id
 For 'parse_single_padloc_table':
